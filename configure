@@ -1,0 +1,485 @@
+#!/bin/sh
+# @(#) $Revision: 4.5 $ $Source: /judy/configure $
+
+# Hand-edited configure script for the Judy library.  Builds Makefile from
+# Makefile.multi plus make_includes/*.mk.
+#
+# Usage:  <script> [-f <flavor>]
+#
+# Redirect stdout/stderr as desired.  Note the space required after -f.
+#
+# Examples:
+#
+#    ./configure				# note:  need not be superuser.
+#    ./configure -f debug > configure.out
+#
+# The default flavor is "product"; can also be "debug" or "cov" (for C-Cover
+# measurements).  Invoke in the top judy/ directory.
+#
+# This script uses the pre-existing Makefile.multi (for multi-platforms) to
+# create a single-platform, single-flavor Judy Makefilefor any one of four
+# known platforms:  hpux_pa, hpux_ipf, linux_ia32, linux_ipf.  (Also win_ia32
+# and win_ipf, but these are not certain to work.)
+#
+# Note:  The pre-existing Makefile.multi is:
+#
+# - static (not generated, such as by configure, for historical reasons)
+# - monolithic (not recursive descent)
+# - rich (many targets)
+# - mature (many parameterizations, clean placement of constructed files, etc)
+# - multi-platform (using "include"s of platform-specific parts)
+# - multi-flavor (using "include"s of flavor-specific parts)
+# - deliverable-complete (knows how to build all deliverable files)
+#
+# However, Makefile.multi is not complete at the top level of the Judy source
+# tree in that it does not know about manual tests, regression tests,
+# benchmarks, etc.
+#
+# The Judy Makefile.multi grew organically out of a platform-centered view.
+# Ideally it should be converted to a more feature-centered, portable view that
+# would allow the use of autoconf and good chances of working on previously
+# untried platforms.
+#
+# So what does this configure script do?  It uses uname(1) to determine the
+# correct platform and invokes the makefile accordingly, while attempting to
+# use only common shell features, nothing fancy.
+
+
+# CHECK INVOCATION:
+
+	FLAVOR='product'		# default.
+	export FLAVOR
+
+	if [ $# = 2 ]
+	then
+	    if [ "x$1" = x-f ]
+	    then FLAVOR="$2"; shift; shift
+	    fi
+	fi
+
+	if [ $# != 0 ]
+	then
+	    echo >&2 "Usage: $0 [-f flavor]\nwhere flavor is one of:" \
+		     "product, debug, cov"
+	    exit 1
+	fi
+
+	case "$FLAVOR" in
+	product | debug | cov) ;;
+	*)  echo >&2 "$0: Error: Flavor must be one of: product, debug, cov"
+	    exit 1;;
+	esac
+
+
+# DETERMINE PLATFORM:
+#  study judy/make_includes/platform.*.mk.
+
+	PLATFORM='generic'
+	export PLATFORM
+
+	SYS=`uname -s`
+	MACH=`uname -m`
+
+	if [ x$SYS = xHP-UX ]
+	then
+	    if [ x$MACH = xia64 ]
+	    then PLATFORM='hpux_ipf'
+	    else PLATFORM='hpux_pa'		# assumed if not IPF.
+	    fi
+	elif [ x$SYS = xLinux ]
+	then
+	    if [ x$MACH = xia64 ]
+	    then PLATFORM='linux_ipf'
+	    else PLATFORM='linux_ia32'		# assumed if not IPF.
+	    fi
+        elif [ x$SYS = xDarwin ] && [ "x$MACH" = "xPower Macintosh" ]
+        then
+            PLATFORM='darwin_pm'
+	elif [ x$SYS = xNetBSD  ] && [ x$MACH = xi386 ]
+	then
+	    PLATFORM='bsd_ia32'
+	elif [ x$SYS = xOpenBSD ] && [ x$MACH = xi386 ]
+	then
+	    PLATFORM='bsd_ia32'
+	elif [ x$SYS = xFreeBSD ] && [ x$MACH = xi386 ]
+	then
+	    PLATFORM='bsd_ia32'
+	elif [ x$SYS = xOSF1    ] && [ x$MACH = xalpha ]
+	then
+	    PLATFORM='alpha_64'
+	elif [ x$SYS = xSunOS ]
+	then
+	    if [ x$MACH = xsun4u ]
+	    then PLATFORM='solaris_sparc'
+	    fi
+	else
+	    case x$SYS in
+	    xCYGWIN*) PLATFORM='cygwin_ia32';;
+	    esac
+	fi
+
+# Handle unrecognized platform:
+
+	if [ x$PLATFORM = xgeneric ]
+	then
+	    cat >&2 <<-EOF
+
+	$0:  Cannot determine a known platform from the output of uname
+	-s ("$SYS") and uname -m ("$MACH").  Judy has been built and
+	tested only on specific platforms (see below).  Judy was written
+	in portable ANSI C.  Therefore will try to build using:
+
+                make_includes/platform.generic.mk
+
+	Send email to the maintainer (dougbaskins .AT, yahoo.com) with
+	requests if you have problems building Judy on your platform.
+
+	For help understanding how Judy is built see file: src/sh_build
+
+	EOF
+	fi
+
+# BUILD MAKEFILE:
+#
+# Note:  $PLATFORM and $FLAVOR are already in the environment.
+
+	INPUT='Makefile.multi'
+	OUTPUT='Makefile'
+
+	echo "Building Judy makefile (\"$OUTPUT\")..."
+	rm -f "$OUTPUT"				# old version if any.
+
+	cat > $OUTPUT <<-EOF
+
+	# Makefile ("$OUTPUT") for the Judy library package,
+	# constructed `date`,
+	# by "$0" from "$INPUT" and subsidiary parts,
+	# \$PLATFORM   = "$PLATFORM"
+	# \$FLAVOR     = "$FLAVOR"
+
+	EOF
+
+# The rest of this script was borrowed from "expinc" (expand includes) with
+# minimum modifications.
+
+# This script knows enough about environment parameters, and make(1) macro
+# definitions and run-time "include" statements, to expand makefile includes,
+# even those that use macros.  The output contains:
+#
+#	# <depth> file <filename> line <number> [(entry <count>)]
+#
+# comments emitted as appropriate.  The <depth> field indicates the depth and
+# direction (entry/return) of each file.  Errors and warnings go to stderr.
+# The stdout IS runnable by make, because the original include lines are
+# commented out (unlike the original expinc).
+#
+# Warning:  Be sure to invoke this script with the same env parameters that are
+# set at the time of calling make.
+#
+# Set $debug non-zero to get lots of debug output, such as "debug=1
+# ./configure".
+
+# Notes:
+#
+# This script isn't as smart as make itself:
+#
+# - It doesn't handle multi-line macro values; it just saves the first line of
+#   the macro value.
+#
+# - It assumes make macros always supercede environment parameters passed in
+#   (does not support make -e).
+#
+# - It assumes only "$(<name>)" macros, and no other types, are used in
+#   "include" lines.
+#
+# - Since it uses getline, it can REPORT when an open makefile re-includes
+#   ITSELF, but not READ FROM itself a second time (it tries, but gets it
+#   wrong).  This is a pathological case that should be rare.
+#
+# However, like make:
+#
+# - Macro values can contain other macros.
+#
+# - The value of a macro at the time of encountering an "include" line is
+#   applied, even if the macro is later reassigned.
+#
+# - If a makefile in another directory is invoked using make -f, or viewed
+#   using this script, paths to include files are wrong unless they have
+#   env-param-driven paths; so run this script in the same directory as the
+#   makefile being expanded.
+
+# Ideally we'd have a flexible, run-time-programmable, C-based preprocessor, a
+# superset of cpp, that would optionally do all of cpp's work:
+#
+# - define macros (with or without parameters)
+# - expand macros
+# - expand include statements
+# - resolve #if statements
+# - strip comments
+#
+# Due to lack of time I have not written such a beast.  In lieu of this general
+# purpose tool, the following shell script must suffice for makefiles only.
+
+
+# CHECK INVOCATION;
+
+    if false				# original expinc code.
+    then
+	if [ $# != 1  -o  "x$1" = x-? ]
+	then
+	    echo >&2 "usage: $0 makefile (must be a named file, not \"-\")"
+	    exit 1
+	fi
+	INPUT="$1"
+    fi
+
+	if [ ! -r "$INPUT" ]
+	then echo >&2 "$0: Cannot read file \"$INPUT\"."; exit 1
+	fi
+
+
+# EXPAND MAKEFILE:
+
+	TAB='	'
+	MAXDEPTH='20'			# for includes and macros.
+
+	[ -z "$debug" ] && debug=0
+
+	set |
+
+	awk 'BEGIN { maxdepth = 20 }
+
+
+# SAVE ENV PARAMETER NAMES AND VALUES from the set command:
+
+	{
+	    pos = index ($0, "=");
+	    macro [substr ($0, 1, pos - 1)] = substr ($0, pos + 1);
+	}
+
+
+# READ LINE FROM CURRENT INPUT FILE:
+#
+# Expand "include"s as they are encountered, and store macro values as they are
+# defined.  This awk script runs entirely in "END" so it can use getline to
+# process the (nested) included files.
+
+	END {
+
+	    if ('"$debug"')
+		for (name in macro)
+		    print "debug: env \"" name "\" = \"" macro [name] "\"";
+
+	    errcmd = "cat >&2";			# for error text.
+	    depth_reenter = 0;			# depth of re-entered file.
+
+
+# EMIT COMMENT ABOUT STARTING FIRST FILE:
+
+	    print "# > file \"" (incfile [depth = 0] = "'"$INPUT"'") \
+		  "\" line", (incline [depth] = 0) + 1;
+
+	    incfile_entries ["'"$INPUT"'"] = 1;
+
+
+# PROCESS EACH INPUT LINE:
+
+	    while (1)				# until exit.
+	    {
+		++ incline [depth];		# line number to read.
+
+
+# HANDLE READ ERROR:
+
+		if ((rc = (getline < incfile [depth])) < 0)
+		{
+		    errtext = "'"$0"': error: cannot getline from file \"" \
+			      incfile [depth] "\", line " incline [depth] \
+			      "; note: both make(1) and this command must " \
+			      "run in the correct directory";
+
+		    print errtext;
+		    print errtext | errcmd;
+		    exit;
+		}
+
+
+# HANDLE EOF:
+#
+# Be sure to close() the file so if it is re-entered, getline starts over.
+
+		if (rc == 0)
+		{
+		    if (depth == 0) exit;	# all done.
+
+		    close (incfile [depth]);
+
+		    if (depth_reenter == depth--)  # closing re-entered file.
+			depth_reenter = 0;
+
+# Emit comment about returning to next outer file:
+
+		    printf ("# <");
+
+		    for (count = 1; count <= depth; ++count)
+			printf ("-");
+
+		    print " file \"" incfile [depth] "\" line", \
+			  incline [depth] + 1;
+
+		    continue;
+		}
+
+
+# PASS THROUGH THE INPUT LINE JUST READ, before doing anything else:
+
+		print;
+
+
+# SKIP BLANK OR COMMENT LINE:
+
+		if ((NF == 0) || ($1 ~ /^#/))
+		    continue;
+
+
+# HANDLE INCLUDE LINE:
+
+		if ($0 ~ /^include[ '"$TAB"']/)		# per make(1).
+		{
+		    if (depth >= maxdepth)
+		    {
+			errtext = "'"$0"': error: maximum include depth (" \
+				  maxdepth ") exceeded, file \"" \
+				  incfile [depth] "\", line " incline [depth];
+
+			print errtext;
+			print errtext | errcmd;
+			exit;
+		    }
+
+		    file = substr ($0, 9);
+
+# Trim leading or trailing whitespace in filename:
+
+		    sub ("^[ '"$TAB"']*",  "", file);
+		    sub ( "[ '"$TAB"']*$", "", file);
+
+		    if ('"$debug"')
+			print "debug: \"" $0 "\", file: \"" file "\"";
+
+# Expand macros in filename:
+
+		    macrodepth = 0;
+
+		    while (pos = index (file, "$("))
+		    {
+			if (! (len = index (substr (file, pos), ")")))
+			    break;		# no closing paren.
+
+			if (len < 4)
+			{
+			    errtext = "'"$0"': error: null macro name, " \
+				      "file \"" incfile [depth] "\", line " \
+				      incline [depth];
+
+			    print errtext;
+			    print errtext | errcmd;
+			    exit;
+			}
+
+			if (++macrodepth > maxdepth)
+			{
+			    errtext = "'"$0"': error: maximum macro depth (" \
+				      maxdepth ") exceeded, file \"" \
+				  incfile [depth] "\", line " incline [depth];
+
+			    print errtext;
+			    print errtext | errcmd;
+			    exit;
+			}
+
+			file = substr (file, 1, pos - 1) \
+			       macro [substr (file, pos + 2, len - 3)] \
+			       substr (file, pos + len);
+		    } # while.
+
+# Emit comment about starting next inner file:
+
+		    printf ("# ");
+
+		    for (count = 0; count <= depth; ++count)
+			printf ("-");
+
+		    printf ("> %s", "file \"" (incfile [++depth] = file) \
+				    "\" line " (incline [depth] = 0) + 1);
+
+# Check for re-entering included file:
+#
+# For files included by a re-included file, just finish the previous line.
+
+		    if ((++ incfile_entries [file] == 1) || depth_reenter)
+		    {
+			print "";
+		    }
+		    else
+		    {
+			print " (entry " incfile_entries [file] ")";
+			depth_reenter = depth;
+
+			print "'"$0"': warning: include file \"" \
+			      file "\" included", incfile_entries [file], \
+			      "times" | errcmd;
+		    }
+
+		    continue;
+
+		} # if.
+
+		if ('"$debug"')
+		    print "debug: \"" $0 "\"";
+
+
+# HANDLE NON-INCLUDE LINE; LOOK FOR MACRO DEFINITION:
+#
+# It is optional whitespace followed by any non-null string of chars except "="
+# or whitespace, followed optionally by whitespace, then by "=", then more
+# optional whitespace (per make(1)).
+
+		if ($0 !~ \
+		    /^[ '"$TAB"']*[^= '"$TAB"'][^= '"$TAB"']*[ '"$TAB"']*=/)
+		{
+		    continue;
+		}
+
+		pos   = index  ($0, "=");
+		name  = substr ($0, 1, pos - 1);
+		value = substr ($0, pos + 1);
+
+# Trim leading or trailing whitespace:
+
+		sub ("^[ '"$TAB"']*",  "", name);
+		sub ( "[ '"$TAB"']*$", "", name);
+		sub ("^[ '"$TAB"']*",  "", value);
+		sub ( "[ '"$TAB"']*$", "", value);
+
+		if ('"$debug"')
+		{
+		    print "debug: \"" $0 "\", name: \"" name "\", value: \"" \
+			  value "\"";
+		}
+
+		macro [name] = value;
+		continue;
+
+	    } # while.
+	}' |
+
+
+# Original expinc ended here, but this version comments out "include" lines
+# passed through above, and puts the output in a known file:
+
+	sed 's/^include/# include/' >> "$OUTPUT"
+
+	echo
+	echo "$0 completed; run 'make'"
+        echo

@@ -1,0 +1,117 @@
+# @(#) $Revision: 4.17 $ $Source: /judy/make_includes/README $
+
+# This tree contains platform-specific and flavor-specific makefile fragments
+# for inclusion by the judy/src/makefile.
+#
+# Quick build examples:
+#
+# PLATFORM=linux_ia32 FLAVOR=product make	# on Linux, no makelog.
+# PLATFORM=hpux_ipf   FLAVOR=cov makelog
+
+platform..mk		default platform; includes one of the other files
+platform.hpux_pa.mk	PLATFORM=hpux_pa (on PA-RISC)
+platform.hpux_ipf.mk	PLATFORM=hpux_ipf
+platform.linux_ia32.mk	PLATFORM=linux_ia32
+platform.bsd_ia32.mk	PLATFORM=*BSD_ia32
+platform.alpha_64.mk	PLATFORM=alpha_64
+platform.linux_ipf.mk	PLATFORM=linux_ipf
+platform.win_ia32.mk	PLATFORM=win_ia32	# for building with MKS.
+platform.win_ipf.mk	PLATFORM=win_ipf	# for building with MKS.
+
+flavor..mk		default flavor; includes one of the other files
+flavor.product.mk	FLAVOR=product; no debug, no assertions, etc.
+flavor.cov.mk		FLAVOR=cov; same as product, but with C-Cover turned on
+flavor.debug.mk		FLAVOR=debug; debuggable, assertions, etc.
+
+
+# HOW TO BUILD JUDY FILES:
+#
+# MAKEFILE:  Judy uses a macro-driven global make(1) makefile.  Macro-driven
+# means some variables are set according to the values of environment
+# parameters.  Global means all sources and targets are known to a single
+# global makefile, although it might eventually grow large, for optimum
+# dependency management and the simplest makefile structure.  (Ref:  "Recursive
+# Make Considered Harmful", found 2/2000 at
+# <http://www.canb.auug.org.au/~millerp/rmch/recu-make-cons-harm.html>)
+#
+# MACROS:  The global top-level makefile includes files from this directory
+# according to:
+#
+# $PLATFORM  defaults if unset; values are in platform.*.mk above
+# $FLAVOR    defaults if unset; values are in flavor.*.mk above
+#
+# You can simply do a "make" with no settings, or for example:
+#
+#    FLAVOR=debug make
+#
+# ALL/SPECIFIC TARGETS:  By default, make with no arguments does a "make all".
+# You can use the "lib" target ("make lib") to construct only libJudy.a and its
+# dependees.  Other specific targets can be named, but you must know their
+# paths to name them; see below about "source-pure" and "constructed files
+# tree".  In general, the makefile is as smart as possible about dependencies
+# and only rebuilds that which is out of date.  Use "make clobber" for a fresh
+# start (specific to a given flavor).
+#
+# LOGGING:  Also consider the use of the local makelog command, a drop-in
+# wrapper replacement for make, that you invoke instead of make, that does nice
+# summarizing and detailed logging.  The Judy makefile is arranged to work well
+# with makelog.
+#
+# BE-PURE:  The Judy build is "BE-pure" in that it writes nothing to the build
+# environment, that is, nothing above the top of the source tree.
+#
+# SOURCE-PURE:  The Judy build is "source-pure" in that it writes no
+# constructed files to the source tree except under flavor-specific
+# subdirectories.  Hence you can build multiple flavors from the same source
+# tree.  However, you cannot run parallel multi-flavor compilations because of
+# temporary files dropped in the source tree, say by cc(1).
+#
+# CONSTRUCTED FILES TREE:  For more on the structure of the flavor-specific
+# constructed files, do a full make and then study the tree, or look at the
+# definitions in the makefile.
+#
+# BUILD ID:  The Judy makefile contains support for always rebuilding a build
+# ID file that is used to insert a build ID whatstring/identstring into
+# constructed delivered objects.  So don't worry about this being reconstructed
+# every time you run make.
+#
+# UNBUILDING:  The use of make(1) means "unbuilding" is not known explicitly by
+# the tool, so instead there are "clean" and "clobber" targets.
+#
+# COMPILATION OPTIONS:
+#
+# EXTCCOPTS:  Add options to compilation commands via EXTCCOPTS, such as:
+#
+#	EXTCCOPTS='-DTRACEJP' make
+#
+# CCPRE:  Alter compilation commands produced by this makefile by putting
+# "CCPRE=<command>" on the make command line.  This is supported by
+# make_includes/*.mk files.  See tool/ccpre for an example.
+#
+# Note:  flavor.cov.mk forces the used of tool/ccpre; see that *mk file.
+#
+# Warning:  If you get a core dump from make when you do this, try something
+# like this:  "CCPRE='echo;ccpre' ..."  Apparently 10.20 make gets ill if the
+# first command in a script is lengthy (not sure).
+#
+# OTHER NOTES:
+#
+# * At least for now, the Judy makefile is no longer "top level", because it
+#   lives in judy/src, which is now down one level.  It delivers some files
+#   drawn from a higher level in the Judy tree than the source directory.
+#
+# * Nothing in the makefile explicitly depends on the makefile itself, though
+#   anything might, but making everything depend on it is too coarse.  Use
+#   appropriate wisdom.
+#
+# * For building object files from common source files, build directly using cc
+#   -D, not by running unifdef first, to support clean source debugging.  But
+#   for calling lint, use unifdef first to create *.c files, and run lint on
+#   those, so as to do single lint runs of multiple *.c files.
+#
+# * On 010301 we decided not to ship JudyNL for the 11i release because we are
+#   not sure the API is solid enough, and there was not much interest shown in
+#   using it in the Judy III version, unlike JudySL.  Also, Judy2L was of
+#   course not documented yet.  So both, along with the manual entries, are
+#   commented out for now in this makefile, but only at the critical points
+#   required to keep them from going into the libraries or docs.

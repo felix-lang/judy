@@ -1,0 +1,71 @@
+In hopes of (someday) making Judy build out-of-the-box on as many Unix
+platforms as possible, I've added a rudimentary GNU build system based on
+autoconf, automake and libtool.  This lacks many features of the original
+HP build system, but it offers the hope of portability.
+
+For the moment, it's possible to build Judy with either the old or new
+build systems.  The original configure script has been renamed to
+'original_configure'.
+
+Eric Kidd
+eric.kidd@pobox.com
+15 September 2002
+
+What's Done
+-----------
+
+  * Configure sets up JU_LITTLE_ENDIAN, JU_64BIT, HAVE_INTTYPES_H and
+    HAVE_STDINT_H correctly.
+  * All the binaries in the tree compile on Debian Linux ia32.
+  * libJudy, Judy.h and the man pages get installed.
+  * Judy.h should get the correct #ifdefs stripped.
+  * Shared libraries work.
+  * Automake can build correct tarballs for distribution.
+  * Basic support for shared library versioning is available.  See
+    configure.ac and 'info libtool' for details.
+
+I renamed tool/readme to tool/munge_readme to avoid conflicting with
+tool/README on Win32, which has a case-insensitive file system.
+
+I also added .cvsignore files so third-party developers can easily import
+libJudy onto a CVS vendor branch to hack on it.
+
+What's Left to Do
+-----------------
+
+  * Flavors need to be implemented ('debug' should be trivial, 'cov' less so).
+  * The source code should honor more of the information discovered by
+    ./configure.
+  * If any other libraries decide to rely on libJudy, it would be nice to
+    make libJudy "parallel installable".  See configure.ac for details.
+  * An autogen.sh script?
+
+How to Use It
+-------------
+
+  * To edit the version, modify configure.ac.
+
+  * To set things up, you'll need autoconf, automake and libtool.  Type the
+    following at the top level of the tree:
+
+    $ libtoolize --copy --force  # libtool setup
+    $ aclocal                    # dig around for M4 macros
+    $ autoheader                 # generate config.h.in
+    $ automake --add-missing     # Generate Makefile.in and install some tools
+    $ autoconf                   # Generate configure from configure.ac
+
+  * To build, use ./configure, make, make install in the normal fashion.
+
+  * To build multiple binaries from the same source tree, type:
+
+    $ mkdir build_ia32
+    $ cd build_ia32
+    $ ../configure
+
+  * To run tests (none are current set up), type:
+
+    $ make check
+
+  * To build and verify a tarball, type:
+
+    $ make distcheck

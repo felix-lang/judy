@@ -1,0 +1,18 @@
+# @(#) $Revision: 4.14 $ $Source: /judy/INSTALL $
+								   echo '
+=== QUICK INSTALLATION OF JUDY LIBRARY AND MANUAL ENTRIES ===
+(Note: This is not a shell script, read this file.)		'; exit 0
+
+1.  ./configure
+2.  make
+3.  make check
+4.  make install                # NOTE: must be SUPERUSER for make install
+				# This installs /opt/Judy/* and symlinks to
+				# files there from /usr/include/, /usr/lib/,
+				# /usr/share/man/, and /usr/share/doc/Judy/.
+
+(Installation done!  The rest is optional but recommended.)
+
+5) man Judy			# nroff -man version, or...
+
+6) file:/opt/Judy/usr/share/doc/Judy/Judy_3x.htm   # from LOCAL Web browser.

@@ -1,0 +1,2204 @@
+# @(#) $Revision: 4.211 $ $Source: /judy/Makefile.multi $
+
+SOURCE_VERSION = 0.1.8
+
+# JUDY MAKEFILE:  Multi-platform, multi-flavor, global (minimum-recursion)
+# makefile for Judy deliverable files and a few other optional files.  Does not
+# know about all Judy-related constructed files, most notably manual and
+# automated regression tests.  This makefile draws source files from various
+# subdirectories, puts constructed files in flavor-specific subdirectories
+# apart from the source directories, and segregates intermediate and delivered
+# constructed files.
+#
+# QUICK BUILD EXAMPLES:
+#
+#    ./configure	# builds Makefile
+#    make
+#    make check         # tests Judy using libJudy.a
+#    make install	# note:  must be superuser for this step.
+#    make distclean
+#
+# TARGETS:  Exported targets; see the actual rules for details:
+#
+#    all		# default, make all deliverables, using the following:
+#    makefile		# build Makefile using ./configure if necessary.
+#    header		# header files.
+#    libs_all		# all delivered libJudy.* files (archive + shared).
+#    lib		# single libJudy.a only (subset).
+#    libs		# all libJudy.a files (if both 32-bit and 64-bit).
+#    docs		# delivered documents.
+#    demos		# delivered demos (just copies for delivery).
+#
+# The remaining targets are not part of the default ("all"):
+#
+#    libs_pic		# libJudy-PIC.a, for building shared libs with Judy.
+#    examples		# copy "example" source files for delivery.
+#    tarchives		# make all tarchive packages, including the following:
+#    tarchive_src	# source delivery package (subset of all files).
+#    tarchive_del	# constructed deliverable files package.
+#    tarchive_examples	# constructed "examples" files only.
+#    install		# copy constructed deliverable files to system.
+#    uninstall		# remove constructed deliverable files from system.
+#    clean		# (present but not implemented)
+#    clobber		# remove most constructed files (src/<platform>).
+#    distclean		# remove all constructed files; revert to source pkg.
+#    list		# list files interesting to search (grep).
+#    list_check		# compare "make list" against files present in tree.
+#
+# MORE BUILD EXAMPLES:
+#
+# Directly using Makefile.multi (the master source) rather than the Makefile
+# constructed by configure is more complicated...
+#
+#    PLATFORM=linux_ia32 FLAVOR=product make -f Makefile.multi > make.out
+#    PLATFORM=linux_ipf  FLAVOR=product make -f Makefile.multi |
+#						tee make.out | grep ^===
+#    PLATFORM=hpux_pa  FLAVOR=debug make -f Makefile.multi
+#    PLATFORM=hpux_ipf FLAVOR=cov   make -f Makefile.multi
+#    EXTCCOPTS='-DTRACEMI' make -f Makefile.multi
+#    CCPRE='../tool/ccpre' make -f Makefile.multi
+#
+# Platforms supported:
+#
+#    linux_ia32
+#    linux_ipf
+#    hpux_pa
+#    hpux_ipf
+#    alpha_64
+#    bsd_ia32
+#    netbsd_ia32
+#    freebsd_ia32
+#    cygwin_ia32
+#    solaris_sparc
+#    darwin_pm		# Apple PPC 10.3
+#    generic.mk
+#    win_ia32		# present but untested.
+#    win_ipf		# present but untested.
+#
+# Flavors:
+#
+#    product
+#    debug		# note:  non-optimized, and turns on -DDEBUG code.
+#
+# MORE DOC:  See make_includes/README for more documentation on using this
+# makefile.
+#
+# MORE ON TARGETS:  As of 4.55, JudyNL and Judy2L are not built by default
+# because we decided not to ship them with 11.11 OEUR.  Also, note that the
+# suffix "_deliver" is only used for source files (processed by this makefile)
+# which have special meanings in a given directory, that is, README and
+# makefile/Makefile only; other source files do not require the suffix.
+#
+# PLATFORM ISSUES:  To use the same makefile on multiple platforms, such as
+# HPUX and Linux, stick to least common denominators and avoid using any
+# platform-specific features.  This includes $$(@F) in dependency lists for
+# filename generation, because Gnu make does not support it, in fact the
+# make.info file disses the syntax.  Hence every target/dependency set must be
+# spelled out separately even when the rules could be identical (via using the
+# portable $(@F) syntax in them).  Also, use `` rather than $() in shell
+# scripts.
+#
+# Note regarding $CCo*:  win_ia32 VC++ CL.EXE does not allow a space after the
+# -Fo or -Fe options, whereas apparently covc on Linux requires it after -o;
+# see make_includes/platform.linux.mk_sub.
+#
+# RECURSION:  The paper, "Recursive Make Considered Harmful", makes a strong
+# case for a monolithic makefile like this one.  Unfortunately, library
+# construction is complex enough that the makefile does recurse once to build
+# variations of library types, calling itself with various macros set
+# differently, although this makes global dependency management a bit less
+# reliable.  The following parameters should be set only upon recursion, and
+# otherwise null (where PIC = Position- Independent Code):
+#
+#    DELDIR_LIB_SUFFIX	null or something like "/pa20_32"
+#    INTDIR_SUFFIX	same except also "-PIC" for PIC *.o files for lib*.sl
+#			or lib*.so
+#    PIC_SUFFIX		null or "-PIC"
+#    LIB_SUFFIX		"a", "lib", "sl" (hpux_pa), or "so" (other platforms)
+#    CC_OPTS_LIB	library-specific cc options, such as "+z"
+#    PIC_SED		null, or $PIC_SED_VALUE for hpux_pa if +z in
+#			$CC_OPTS_LIB
+#    PREBUILT		"_32" or "_64", for prebuilt tools for cross-compile
+#			environments; see below
+#
+# A recursive call should also always be for one specific library name (by
+# actual path, not virtual target).
+#
+# WARNING:  Cannot compile PA2.0 or 64-bit prior to HPUX 11.x; on 10.x, you get
+# compiler warnings and essentially 32-bit code.
+
+
+###############################################################################
+# SET PLATFORM AND FLAVOR
+#
+# Non-null defaults soon overridden by some (but not all) flavor.*.mk file(s):
+#
+# Target names to use for cov flavor:
+
+COV_RECURSE_PREP_VALUE	 = cov_recurse_prep
+COV_RECURSE_FINISH_VALUE = cov_recurse_finish
+
+# Top-level directories:
+
+SRCDIR_TOP =	 .
+SRCDIR_SRC =	 src
+SRCDIR_TOOL =	 tool
+SRCDIR_DOC =	 doc/ext
+SRCDIR_DOC_INT = doc/int
+SRCDIR_TEST =	 test
+
+# Include fragment files based on values of external $PLATFORM and $FLAVOR
+# parameters; with defaults if null or unset:
+
+include $(SRCDIR_TOP)/make_includes/platform.$(PLATFORM).mk
+include $(SRCDIR_TOP)/make_includes/flavor.$(FLAVOR).mk
+
+SYM_LINK = ln -sf
+FILTERIT = cat
+
+# Remove Null Lines is an old obsolete un*x command
+RMNL     = grep -v '^[   ]*$$'
+
+###############################################################################
+# CONSTANTS, DIRECTORIES, HEADER FILES
+
+# Announcement lines:
+
+ANNOUNCE = @$(ECHO) ====
+
+# Real source directories:
+
+SRCDIR_C =	$(SRCDIR_SRC)/JudyCommon
+SRCDIR_1 =	$(SRCDIR_SRC)/Judy1
+SRCDIR_L =	$(SRCDIR_SRC)/JudyL
+SRCDIR_SL =	$(SRCDIR_SRC)/JudySL
+SRCDIR_HS =	$(SRCDIR_SRC)/JudyHS
+
+SRCDIR_APPS =	$(SRCDIR_SRC)/apps
+SRCDIR_DEMO =	$(SRCDIR_APPS)/demo
+SRCDIR_FUNCS =	$(SRCDIR_SRC)/funcs
+
+SRCDIR_TEST_MANUAL = $(SRCDIR_TEST)/manual
+SRCDIR_TEST_AUTO =   $(SRCDIR_TEST)/auto
+
+# Shorthands for including header file directories:
+#
+# Note:  In 4.48 these were all just lumped together into $INCDIR, but Doug
+# pointed out this can be a little dangerous; for example, Judy1 code should
+# not be exposed to JudyL.h during compilation.
+
+INCDIR_C =	-I$(SRCDIR_SRC) -I$(SRCDIR_C)
+INCDIR_1 =	-I$(SRCDIR_SRC) -I$(SRCDIR_C) -I$(SRCDIR_1)
+INCDIR_L =	-I$(SRCDIR_SRC) -I$(SRCDIR_C) -I$(SRCDIR_L)
+INCDIR_SL =	-I$(SRCDIR_SRC)
+INCDIR_HS =	-I$(SRCDIR_SRC)
+
+# Object file directories:
+#
+# $INTDIR is the location for intermediate (non-deliverable) constructed files,
+# optionally including a suffix component for recursive make calls.
+#
+# $DELDIR is the CPF-standard "deliver/" followed by various paths for
+# different files so they are in an appropriate place for delivery to an HPUX
+# system.  Yes, this leads to annoyingly long full paths such as
+# hpux_pa/product/deliver/usr/share/doc/Judy, but Judy-cious use of symlinks in
+# the top of a personal sandbox can mitigate this.
+#
+# $OBJDIR_TOOL is where to put special tools.  Why not $INTDIR?  Because some
+# of them are pre-constructed for cross-compile platforms; see comments
+# elsewhere.
+#
+# Note:  Through version 4.56, files were placed in deliver/opt/Judy, but in
+# preparation for 11.11 OEUR delivery we decided they belong in various "core
+# HPUX" locations under /usr on the filesystem (see below).
+#
+# Note:  For open source delivery, Judy files belong back in /opt/Judy; see the
+# install target.
+#
+# Note:  For safety the values of $OBJDIR_OPT and the suffix of $DELDIR_DOC are
+# hard-coded into the install and uninstall targets.
+
+OBJDIR =	$(SRCDIR_SRC)/$(PLATFORM)/$(FLAVOR)
+INTDIR =	$(OBJDIR)/intermed$(INTDIR_SUFFIX)
+DELDIR =	$(OBJDIR)/deliver
+OBJDIR_TOOL =	$(SRCDIR_TOOL)/obj
+
+# Judy top-level header files, external and internal:
+
+HEADER_EXT =	$(SRCDIR_SRC)/Judy.h
+HEADER_INT =	$(SRCDIR_C)/JudyPrivate.h
+HEADER_INTB =	$(SRCDIR_C)/JudyPrivateBranch.h
+HEADER_INT1L =	$(SRCDIR_C)/JudyPrivate1L.h
+HEADER_DEL =	$(DELDIR_INC)/Judy.h
+
+# Note:  $HEADER_INT1L is not depended upon by all sources:
+
+HEADERS =	$(HEADER_EXT) $(HEADER_INT) $(HEADER_INTB)
+HEADERS2 =	$(HEADERS) $(HEADER_INT1L)
+HEADERS_LIST =	$(HEADERS2)
+
+
+###############################################################################
+# DELIVERABLES:  MISCELLANEOUS TOP-LEVEL FILES:
+#
+# These are mostly included in source-package deliveries but not binary
+# deliveries.
+#
+# Note:  $SRC_COPYING is the LGPL, top-level license, for open source
+# deliveries, not to be confused with the older doc/ext/LICENSE retained for
+# compatibility but not shipped with source tarchives.
+
+SRC_CONFIGURE =	$(SRCDIR_TOP)/configure
+SRC_INSTALL_IT = $(SRCDIR_TOP)/INSTALL_IT
+SRC_COPYING =	$(SRCDIR_TOP)/COPYING
+
+# Master and constructed makefile names, for recursive calls when make -f is
+# used on the master name:
+
+MAKEFILE_MASTER	= $(SRCDIR_TOP)/Makefile.multi
+MAKEFILE_CONS =	  $(SRCDIR_TOP)/Makefile
+MAKEFILE_PARTS =  $(SRCDIR_TOP)/make_includes/*
+
+SRCS_README =					\
+	    $(SRCDIR_TOP)/README		\
+	    $(SRCDIR_TOP)/make_includes/README	\
+	    $(SRCDIR_DOC)/README		\
+	    $(SRCDIR_TOOL)/README		\
+	    $(SRCDIR_SRC)/README		\
+	    $(SRCDIR_C)/README			\
+	    $(SRCDIR_1)/README			\
+	    $(SRCDIR_L)/README			\
+	    $(SRCDIR_SL)/README			\
+	    $(SRCDIR_HS)/README			\
+	    $(SRCDIR_APPS)/README		\
+	    $(SRCDIR_DEMO)/README
+
+
+###############################################################################
+# DELIVERABLES:  COMMON SOURCE FILES
+
+SRC_C_M =	$(SRCDIR_C)/JudyMalloc.c
+OBJ_C_M =	$(INTDIR)/JudyMalloc.o
+
+# Note:  $SRC_C_PJP is #include'd at compile time by various other *.c files:
+
+SRC_C_PJP =	$(SRCDIR_C)/JudyPrintJP.c
+
+# Files directly suitable for building or lint:
+
+OBJS_C =	$(OBJ_C_M)
+
+SRCS_C_LINT =	$(SRC_C_M)
+
+# These are used to build multiple *.c or *.o files:
+
+SRC_C_G =	$(SRCDIR_C)/JudyGet.c
+SRC_C_I =	$(SRCDIR_C)/JudyIns.c
+SRC_C_IA =	$(SRCDIR_C)/JudyInsArray.c
+SRC_C_D =	$(SRCDIR_C)/JudyDel.c
+SRC_C_F =	$(SRCDIR_C)/JudyFirst.c
+SRC_C_PN =	$(SRCDIR_C)/JudyPrevNext.c
+SRC_C_PNE =	$(SRCDIR_C)/JudyPrevNextEmpty.c
+SRC_C_C =	$(SRCDIR_C)/JudyCount.c
+SRC_C_BC =	$(SRCDIR_C)/JudyByCount.c
+SRC_C_FA =	$(SRCDIR_C)/JudyFreeArray.c
+SRC_C_MU =	$(SRCDIR_C)/JudyMemUsed.c
+SRC_C_MA =	$(SRCDIR_C)/JudyMemActive.c
+
+SRC_C_TB =	$(SRCDIR_C)/JudyTables.c
+SRC_C_CC =	$(SRCDIR_C)/JudyCascade.c
+SRC_C_DC =	$(SRCDIR_C)/JudyDecascade.c
+SRC_C_CB =	$(SRCDIR_C)/JudyCreateBranch.c
+SRC_C_IB =	$(SRCDIR_C)/JudyInsertBranch.c
+SRC_C_MIF =	$(SRCDIR_C)/JudyMallocIF.c
+
+# Compilation controls for files that allow enabling or disabling "smart" cache
+# line minimization.  For Judy*Count() it turns out to be about 5x faster to
+# let the code compile in (the default), but mysteriously, for Judy*ByCount()
+# it's substantially faster, perhaps 1.5x, to disable it.
+
+SRC_C_C_SMART =
+SRC_C_BC_SMART = -DNOSMARTJBB -DNOSMARTJBU -DNOSMARTJLB
+
+# For listing official source files:
+
+
+SRCS_C =	 $(SRC_C_M)                                           	     \
+		 $(SRC_C_PJP)						     \
+		 $(SRC_C_G) $(SRC_C_I) $(SRC_C_IA) $(SRC_C_D)		     \
+		 $(SRC_C_F) $(SRC_C_PN) $(SRC_C_PNE)			     \
+		 $(SRC_C_C) $(SRC_C_BC) $(SRC_C_FA) $(SRC_C_MU) $(SRC_C_MA)  \
+		 $(SRC_C_TB) $(SRC_C_CC) $(SRC_C_DC) $(SRC_C_CB) $(SRC_C_IB) \
+		 $(SRC_C_MIF)
+
+
+###############################################################################
+# DELIVERABLES:  JUDY1 SOURCE FILES
+
+HEADER_1 =	$(SRCDIR_1)/Judy1.h
+
+# Separate list of sources for compiling each separately:
+#
+# Dependencies for each source file are listed on the build rule for each.
+#
+# NOTE:  In a previous version (4.6), all *.c files were merged into a single
+# *.c so the compiler could inline the small functions and hide static
+# functions.  We discovered it might not help much, at least for libJudy.a,
+# although for libJudy.sl you MIGHT still want it in order to avoid dynamic
+# linking overhead.  Also, for debug and coverage flavors you don't want to
+# work with the merged source.  Rather than make this flavor-specific, which is
+# hard, for now we arranged this makefile to ALWAYS build from separate *.o
+# files, even for the *.sl.  TBD -- revisit and tune later.
+#
+# The following are extracted from appropriate $SRC_C_* when needed (for lint):
+
+SRC_1_T =	$(INTDIR)/Judy1Test.c
+SRC_1_S =	$(INTDIR)/Judy1Set.c
+SRC_1_SA =	$(INTDIR)/Judy1SetArray.c
+SRC_1_U =	$(INTDIR)/Judy1Unset.c
+SRC_1_F =	$(INTDIR)/Judy1First.c
+SRC_1_N =	$(INTDIR)/Judy1Next.c
+SRC_1_P =	$(INTDIR)/Judy1Prev.c
+SRC_1_NE =	$(INTDIR)/Judy1NextEmpty.c
+SRC_1_PE =	$(INTDIR)/Judy1PrevEmpty.c
+SRC_1_C =	$(INTDIR)/Judy1Count.c
+SRC_1_BC =	$(INTDIR)/Judy1ByCount.c
+SRC_1_FA =	$(INTDIR)/Judy1FreeArray.c
+SRC_1_MU =	$(INTDIR)/Judy1MemUsed.c
+SRC_1_MA =	$(INTDIR)/Judy1MemActive.c
+SRC_1_TB =	$(INTDIR)/Judy1Tables.c
+SRC_1_CC =	$(INTDIR)/Judy1Cascade.c
+SRC_1_DC =	$(INTDIR)/Judy1Decascade.c
+SRC_1_CB =	$(INTDIR)/Judy1CreateBranch.c
+SRC_1_IB =	$(INTDIR)/Judy1InsertBranch.c
+SRC_1_MIF =	$(INTDIR)/Judy1MallocIF.c
+
+# Summary of constructed source files:
+
+SRCS_1_CONS =	$(SRC_1_T) $(SRC_1_S) $(SRC_1_SA) $(SRC_1_U) $(SRC_1_F) \
+		$(SRC_1_N) $(SRC_1_P) $(SRC_1_NE) $(SRC_1_PE) \
+		$(SRC_1_C) $(SRC_1_BC) $(SRC_1_FA) $(SRC_1_MU) $(SRC_1_MA) \
+		$(SRC_1_TB) $(SRC_1_CC) $(SRC_1_DC) $(SRC_1_CB) $(SRC_1_IB) \
+		$(SRC_1_MIF)
+
+SRCS_1_LINT =	$(SRCS_1_CONS)
+
+# Building $SRC_1_TB is a special case that requires building and running an
+# intermediate program:
+#
+# TBD:  Special case last modified 020319:  $TOOL_1_TB_CONS is the file (tool)
+# actually constructed, but for building with a cross-compiler on a different
+# platform where native compilers are not available (currently only win_ipf on
+# win_ia32; see also $CC_TOOL), you can't run the tool (because it's built for
+# the target, that is, IPF), so use a pre-built version instead; see the
+# $TOOL_1_TB rule.  Worse, there are two variations of this tool, for 32-bit or
+# 64-bit builds -- at least on HPUX platforms, although as of 4.160 the tools
+# no longer need to be prebuilt, but the separation is still valid.
+#
+# So, $PLATFORM says which platform the tool's [pre]built for; $PREBUILT is
+# used to separate 32-bit and 64-bit versions where needed; and $TOOL_SUFFIX is
+# for cases like win_ipf where ".exe" is not ignored by make.
+
+TOOL_1_TB_CONS = $(INTDIR)/Judy1TablesGen$(TOOL_SUFFIX)
+TOOL_1_TB = $(OBJDIR_TOOL)/Judy1TablesGen_$(PLATFORM)$(PREBUILT)$(TOOL_SUFFIX)
+
+# Note:  $OBJ_1__T is a special case alternative compilation; see usage in
+# Judy.h; is not involved in linting:
+
+OBJ_1_T =	$(INTDIR)/Judy1Test.o
+OBJ_1__T =	$(INTDIR)/j__udy1Test.o
+OBJ_1_S =	$(INTDIR)/Judy1Set.o
+OBJ_1_SA =	$(INTDIR)/Judy1SetArray.o
+OBJ_1_U =	$(INTDIR)/Judy1Unset.o
+OBJ_1_F =	$(INTDIR)/Judy1First.o
+OBJ_1_N =	$(INTDIR)/Judy1Next.o
+OBJ_1_P =	$(INTDIR)/Judy1Prev.o
+OBJ_1_NE =	$(INTDIR)/Judy1NextEmpty.o
+OBJ_1_PE =	$(INTDIR)/Judy1PrevEmpty.o
+OBJ_1_C =	$(INTDIR)/Judy1Count.o
+OBJ_1_BC =	$(INTDIR)/Judy1ByCount.o
+OBJ_1_FA =	$(INTDIR)/Judy1FreeArray.o
+OBJ_1_MU =	$(INTDIR)/Judy1MemUsed.o
+OBJ_1_MA =	$(INTDIR)/Judy1MemActive.o
+OBJ_1_TB =	$(INTDIR)/Judy1Tables.o
+OBJ_1_CC =	$(INTDIR)/Judy1Cascade.o
+OBJ_1_DC =	$(INTDIR)/Judy1Decascade.o
+OBJ_1_CB =	$(INTDIR)/Judy1CreateBranch.o
+OBJ_1_IB =	$(INTDIR)/Judy1InsertBranch.o
+OBJ_1_MIF =	$(INTDIR)/Judy1MallocIF.o
+
+OBJS_1 =	$(OBJ_1_T) \
+		$(OBJ_1__T) \
+		$(OBJ_1_S) \
+		$(OBJ_1_SA) \
+		$(OBJ_1_U) \
+		$(OBJ_1_F) \
+		$(OBJ_1_N) \
+		$(OBJ_1_P) \
+		$(OBJ_1_NE) \
+		$(OBJ_1_PE) \
+		$(OBJ_1_C) \
+		$(OBJ_1_BC) \
+		$(OBJ_1_FA) \
+		$(OBJ_1_MU) \
+		$(OBJ_1_MA) \
+		$(OBJ_1_TB) \
+		$(OBJ_1_CC) \
+		$(OBJ_1_DC) \
+		$(OBJ_1_CB) \
+		$(OBJ_1_IB) \
+		$(OBJ_1_MIF)
+
+# For listing official source files:
+
+HEADERS_1 =	$(HEADER_1)
+SRCS_1 =
+
+
+###############################################################################
+# DELIVERABLES:  JUDYL SOURCE FILES
+
+HEADER_L =	$(SRCDIR_L)/JudyL.h
+
+# Separate list of sources for compiling each separately:
+#
+# Dependencies for each source file are listed on the build rule for each.
+#
+# The following are extracted from appropriate $SRC_C_* when needed (for lint):
+
+SRC_L_G =	$(INTDIR)/JudyLGet.c
+SRC_L_I =	$(INTDIR)/JudyLIns.c
+SRC_L_IA =	$(INTDIR)/JudyLInsArray.c
+SRC_L_D =	$(INTDIR)/JudyLDel.c
+SRC_L_F =	$(INTDIR)/JudyLFirst.c
+SRC_L_N =	$(INTDIR)/JudyLNext.c
+SRC_L_P =	$(INTDIR)/JudyLPrev.c
+SRC_L_NE =	$(INTDIR)/JudyLNextEmpty.c
+SRC_L_PE =	$(INTDIR)/JudyLPrevEmpty.c
+SRC_L_C =	$(INTDIR)/JudyLCount.c
+SRC_L_BC =	$(INTDIR)/JudyLByCount.c
+SRC_L_FA =	$(INTDIR)/JudyLFreeArray.c
+SRC_L_MU =	$(INTDIR)/JudyLMemUsed.c
+SRC_L_MA =	$(INTDIR)/JudyLMemActive.c
+SRC_L_TB =	$(INTDIR)/JudyLTables.c
+SRC_L_CC =	$(INTDIR)/JudyLCascade.c
+SRC_L_DC =	$(INTDIR)/JudyLDecascade.c
+SRC_L_CB =	$(INTDIR)/JudyLCreateBranch.c
+SRC_L_IB =	$(INTDIR)/JudyLInsertBranch.c
+SRC_L_MIF =	$(INTDIR)/JudyLMallocIF.c
+
+# Summary of constructed source files:
+
+SRCS_L_CONS =	$(SRC_L_G) $(SRC_L_I) $(SRC_L_IA) $(SRC_L_D) $(SRC_L_F) \
+		$(SRC_L_N) $(SRC_L_P) $(SRC_L_NE) $(SRC_L_PE) \
+		$(SRC_L_C) $(SRC_L_BC) $(SRC_L_FA) $(SRC_L_MU) $(SRC_L_MA) \
+		$(SRC_L_TB) $(SRC_L_CC) $(SRC_L_DC) $(SRC_L_CB) $(SRC_L_IB) \
+		$(SRC_L_MIF)
+
+SRCS_L_LINT =	$(SRCS_L_CONS)
+
+# Building $SRC_L_TB is a special case that requires building and running an
+# intermediate program:
+#
+# TBD:  Special case, see previous TBD.
+
+TOOL_L_TB_CONS = $(INTDIR)/JudyLTablesGen$(TOOL_SUFFIX)
+TOOL_L_TB = $(OBJDIR_TOOL)/JudyLTablesGen_$(PLATFORM)$(PREBUILT)$(TOOL_SUFFIX)
+
+# Note:  $OBJ_L__G is a special case alternative compilation; see usage in
+# Judy.h; is not involved in linting:
+
+OBJ_L_G =	$(INTDIR)/JudyLGet.o
+OBJ_L__G =	$(INTDIR)/j__udyLGet.o
+OBJ_L_I =	$(INTDIR)/JudyLIns.o
+OBJ_L_IA =	$(INTDIR)/JudyLInsArray.o
+OBJ_L_D =	$(INTDIR)/JudyLDel.o
+OBJ_L_F =	$(INTDIR)/JudyLFirst.o
+OBJ_L_N =	$(INTDIR)/JudyLNext.o
+OBJ_L_P =	$(INTDIR)/JudyLPrev.o
+OBJ_L_NE =	$(INTDIR)/JudyLNextEmpty.o
+OBJ_L_PE =	$(INTDIR)/JudyLPrevEmpty.o
+OBJ_L_C =	$(INTDIR)/JudyLCount.o
+OBJ_L_BC =	$(INTDIR)/JudyLByCount.o
+OBJ_L_FA =	$(INTDIR)/JudyLFreeArray.o
+OBJ_L_MU =	$(INTDIR)/JudyLMemUsed.o
+OBJ_L_MA =	$(INTDIR)/JudyLMemActive.o
+OBJ_L_TB =	$(INTDIR)/JudyLTables.o
+OBJ_L_CC =	$(INTDIR)/JudyLCascade.o
+OBJ_L_DC =	$(INTDIR)/JudyLDecascade.o
+OBJ_L_CB =	$(INTDIR)/JudyLCreateBranch.o
+OBJ_L_IB =	$(INTDIR)/JudyLInsertBranch.o
+OBJ_L_MIF =	$(INTDIR)/JudyLMallocIF.o
+
+OBJS_L =	$(OBJ_L_G) \
+		$(OBJ_L__G) \
+		$(OBJ_L_I) \
+		$(OBJ_L_IA) \
+		$(OBJ_L_D) \
+		$(OBJ_L_F) \
+		$(OBJ_L_N) \
+		$(OBJ_L_P) \
+		$(OBJ_L_NE) \
+		$(OBJ_L_PE) \
+		$(OBJ_L_C) \
+		$(OBJ_L_BC) \
+		$(OBJ_L_FA) \
+		$(OBJ_L_MU) \
+		$(OBJ_L_MA) \
+		$(OBJ_L_TB) \
+		$(OBJ_L_CC) \
+		$(OBJ_L_DC) \
+		$(OBJ_L_CB) \
+		$(OBJ_L_IB) \
+		$(OBJ_L_MIF)
+
+# For listing official source files:
+
+HEADERS_L =	$(HEADER_L)
+SRCS_L =
+
+
+###############################################################################
+# DELIVERABLES:  JUDYSL/HL SOURCE FILES
+
+SRC_SL =	$(SRCDIR_SL)/JudySL.c
+OBJ_SL =	$(INTDIR)/JudySL.o
+
+SRC_HS =	$(SRCDIR_HS)/JudyHS.c
+OBJ_HS =	$(INTDIR)/JudyHS.o
+
+###############################################################################
+# DELIVERABLES:  OTHER LISTS AND TOOLS
+#
+# For listing official source files:
+#
+
+SRCS_MISC1 =	$(SRC_HS) $(SRC_SL)
+
+LIB_OBJ_DEP =	$(OBJS_C) \
+		$(OBJS_1) \
+		$(OBJS_L) \
+		$(OBJ_SL) \
+		$(OBJ_HS)
+
+LIB_OBJ =	$(LIB_OBJ_DEP)
+
+# This generic name becomes a specific name, including parameterized parts
+# passed into a recursive call of the makefile, when referenced by a recursive
+# call:
+
+LIB_ =		$(DELDIR_LIB)/libJudy$(PIC_SUFFIX).$(LIB_SUFFIX)
+
+# From where to obtain a build ID in a parent makefile; choose this library at
+# random (although if all are built together, all should have the same build
+# ID):
+
+LIB_ID =	$(DELDIR_LIB)$(LIB_ID_PATH)/libJudy.$(LIB_ID_SUFFIX)
+
+# Special case, constructed tools:
+#
+# TBD:  Special case, see previous TBD.
+
+MANTOOL_SRC =	$(SRCDIR_TOOL)/jhton.c
+MANTOOL_CONS =	$(INTDIR)/jhton$(TOOL_SUFFIX)
+MANTOOL =	$(OBJDIR_TOOL)/jhton_$(PLATFORM)$(TOOL_SUFFIX)
+
+# These tools are source-delivered only, for user convenience:
+
+README_SRC =	 $(SRCDIR_TOOL)/readme
+CCPRE_SRC =	 $(SRCDIR_TOOL)/ccpre
+LISTJPTYPE_SRC = $(SRCDIR_TOOL)/listJPtype.c
+
+SRCS_TOOL =	$(MANTOOL_SRC)	\
+		$(README_SRC)	\
+		$(CCPRE_SRC)	\
+		$(LISTJPTYPE_SRC)
+
+# See rules that use these macros:
+
+TARCHIVE_SRC_TEMPDIR =	$(SRCDIR_TOP)/Judy-$(SOURCE_VERSION)
+TARCHIVE_SRC_BASE =	$(SRCDIR_TOP)/Judy-$(SOURCE_VERSION).src.tar
+TARCHIVE_SRC =		$(TARCHIVE_SRC_BASE).gz
+
+TARCHIVE_DEL_BASE =	Judy-$(SOURCE_VERSION).$(PLATFORM).tar
+TARCHIVE_DEL =		$(DELDIR)/$(TARCHIVE_DEL_BASE).gz
+
+# There's no difference in $TARCHIVE_EXAMPLES_BASE for 32 or 64 bit:
+
+TARCHIVE_EXAMPLES_BASE = Judy-$(SOURCE_VERSION).examples.tar
+TARCHIVE_EXAMPLES =	 $(DELDIR)/$(TARCHIVE_EXAMPLES_BASE).gz
+
+
+###############################################################################
+# DELIVERABLES:  DOCUMENTS
+#
+# $DOC_OBJ_MAN* are compressed nroff variants, which have platform-dependent
+# suffixes, and hardlinks for convenience doing "man xxx".
+#
+# Note:  Spell out the links here rather than, say, data-driving them from HTML
+# comments in the manual entries (see 4.131 of this file) because anything
+# other than spelling them out here means hidden dependencies and difficulty
+# creating $INSTALL_TABLE.
+
+DOC_SRC_HTML =	      $(SRCDIR_DOC)/Judy_3x.htm
+DOC_OBJ_HTML =	      $(DELDIR_DOC)/Judy_3x.htm
+DOC_OBJ_MAN =	      $(DELDIR_MAN)/Judy.3x$(MANFILE_SUFFIX)
+
+DOC_SRC_HTML_1 =      $(SRCDIR_DOC)/Judy1_3x.htm
+DOC_OBJ_HTML_1 =      $(DELDIR_DOC)/Judy1_3x.htm
+DOC_OBJ_MAN_1 =	      $(DELDIR_MAN)/Judy1.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_1_B01 =  $(DELDIR_MAN)/J1T.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B02 =  $(DELDIR_MAN)/J1S.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B03 =  $(DELDIR_MAN)/J1U.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B04 =  $(DELDIR_MAN)/J1F.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B05 =  $(DELDIR_MAN)/J1N.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B06 =  $(DELDIR_MAN)/J1L.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B07 =  $(DELDIR_MAN)/J1P.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B08 =  $(DELDIR_MAN)/J1FE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B09 =  $(DELDIR_MAN)/J1NE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B10 =  $(DELDIR_MAN)/J1LE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B11 =  $(DELDIR_MAN)/J1PE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B12 =  $(DELDIR_MAN)/J1C.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B13 =  $(DELDIR_MAN)/J1BC.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B14 =  $(DELDIR_MAN)/J1FA.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1_B15 =  $(DELDIR_MAN)/J1MU.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_1 =     $(DOC_LINK_MAN_1_B01) \
+		      $(DOC_LINK_MAN_1_B02) \
+		      $(DOC_LINK_MAN_1_B03) \
+		      $(DOC_LINK_MAN_1_B04) \
+		      $(DOC_LINK_MAN_1_B05) \
+		      $(DOC_LINK_MAN_1_B06) \
+		      $(DOC_LINK_MAN_1_B07) \
+		      $(DOC_LINK_MAN_1_B08) \
+		      $(DOC_LINK_MAN_1_B09) \
+		      $(DOC_LINK_MAN_1_B10) \
+		      $(DOC_LINK_MAN_1_B11) \
+		      $(DOC_LINK_MAN_1_B12) \
+		      $(DOC_LINK_MAN_1_B13) \
+		      $(DOC_LINK_MAN_1_B14) \
+		      $(DOC_LINK_MAN_1_B15)
+
+DOC_SRC_HTML_1F =     $(SRCDIR_DOC)/Judy1_funcs_3x.htm
+DOC_OBJ_HTML_1F =     $(DELDIR_DOC)/Judy1_funcs_3x.htm
+DOC_OBJ_MAN_1F =      $(DELDIR_MAN)/Judy1_funcs.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_1F_B01 = $(DELDIR_MAN)/Judy1Test.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B02 = $(DELDIR_MAN)/Judy1Set.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B03 = $(DELDIR_MAN)/Judy1Unset.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B04 = $(DELDIR_MAN)/Judy1First.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B05 = $(DELDIR_MAN)/Judy1Next.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B06 = $(DELDIR_MAN)/Judy1Last.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B07 = $(DELDIR_MAN)/Judy1Prev.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B08 = $(DELDIR_MAN)/Judy1FirstEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B09 = $(DELDIR_MAN)/Judy1NextEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B10 = $(DELDIR_MAN)/Judy1LastEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B11 = $(DELDIR_MAN)/Judy1PrevEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B12 = $(DELDIR_MAN)/Judy1Count.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B13 = $(DELDIR_MAN)/Judy1ByCount.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B14 = $(DELDIR_MAN)/Judy1FreeArray.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_1F_B15 = $(DELDIR_MAN)/Judy1MemUsed.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_1F =    $(DOC_LINK_MAN_1F_B01) \
+		      $(DOC_LINK_MAN_1F_B02) \
+		      $(DOC_LINK_MAN_1F_B03) \
+		      $(DOC_LINK_MAN_1F_B04) \
+		      $(DOC_LINK_MAN_1F_B05) \
+		      $(DOC_LINK_MAN_1F_B06) \
+		      $(DOC_LINK_MAN_1F_B07) \
+		      $(DOC_LINK_MAN_1F_B08) \
+		      $(DOC_LINK_MAN_1F_B09) \
+		      $(DOC_LINK_MAN_1F_B10) \
+		      $(DOC_LINK_MAN_1F_B11) \
+		      $(DOC_LINK_MAN_1F_B12) \
+		      $(DOC_LINK_MAN_1F_B13) \
+		      $(DOC_LINK_MAN_1F_B14) \
+		      $(DOC_LINK_MAN_1F_B15)
+
+DOC_SRC_HTML_L =      $(SRCDIR_DOC)/JudyL_3x.htm
+DOC_OBJ_HTML_L =      $(DELDIR_DOC)/JudyL_3x.htm
+DOC_OBJ_MAN_L =	      $(DELDIR_MAN)/JudyL.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_L_B01 =  $(DELDIR_MAN)/JLG.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B02 =  $(DELDIR_MAN)/JLI.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B03 =  $(DELDIR_MAN)/JLD.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B04 =  $(DELDIR_MAN)/JLF.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B05 =  $(DELDIR_MAN)/JLN.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B06 =  $(DELDIR_MAN)/JLL.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B07 =  $(DELDIR_MAN)/JLP.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B08 =  $(DELDIR_MAN)/JLFE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B09 =  $(DELDIR_MAN)/JLNE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B10 =  $(DELDIR_MAN)/JLLE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B11 =  $(DELDIR_MAN)/JLPE.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B12 =  $(DELDIR_MAN)/JLC.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B13 =  $(DELDIR_MAN)/JLBC.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B14 =  $(DELDIR_MAN)/JLFA.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_L_B15 =  $(DELDIR_MAN)/JLMU.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_L =     $(DOC_LINK_MAN_L_B01) \
+		      $(DOC_LINK_MAN_L_B02) \
+		      $(DOC_LINK_MAN_L_B03) \
+		      $(DOC_LINK_MAN_L_B04) \
+		      $(DOC_LINK_MAN_L_B05) \
+		      $(DOC_LINK_MAN_L_B06) \
+		      $(DOC_LINK_MAN_L_B07) \
+		      $(DOC_LINK_MAN_L_B08) \
+		      $(DOC_LINK_MAN_L_B09) \
+		      $(DOC_LINK_MAN_L_B10) \
+		      $(DOC_LINK_MAN_L_B11) \
+		      $(DOC_LINK_MAN_L_B12) \
+		      $(DOC_LINK_MAN_L_B13) \
+		      $(DOC_LINK_MAN_L_B14) \
+		      $(DOC_LINK_MAN_L_B15)
+
+DOC_SRC_HTML_LF =     $(SRCDIR_DOC)/JudyL_funcs_3x.htm
+DOC_OBJ_HTML_LF =     $(DELDIR_DOC)/JudyL_funcs_3x.htm
+DOC_OBJ_MAN_LF =      $(DELDIR_MAN)/JudyL_funcs.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_LF_B01 = $(DELDIR_MAN)/JudyLGet.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B02 = $(DELDIR_MAN)/JudyLIns.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B03 = $(DELDIR_MAN)/JudyLDel.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B04 = $(DELDIR_MAN)/JudyLFirst.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B05 = $(DELDIR_MAN)/JudyLNext.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B06 = $(DELDIR_MAN)/JudyLLast.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B07 = $(DELDIR_MAN)/JudyLPrev.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B08 = $(DELDIR_MAN)/JudyLFirstEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B09 = $(DELDIR_MAN)/JudyLNextEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B10 = $(DELDIR_MAN)/JudyLLastEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B11 = $(DELDIR_MAN)/JudyLPrevEmpty.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B12 = $(DELDIR_MAN)/JudyLCount.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B13 = $(DELDIR_MAN)/JudyLByCount.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B14 = $(DELDIR_MAN)/JudyLFreeArray.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_LF_B15 = $(DELDIR_MAN)/JudyLMemUsed.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_LF =    $(DOC_LINK_MAN_LF_B01) \
+		      $(DOC_LINK_MAN_LF_B02) \
+		      $(DOC_LINK_MAN_LF_B03) \
+		      $(DOC_LINK_MAN_LF_B04) \
+		      $(DOC_LINK_MAN_LF_B05) \
+		      $(DOC_LINK_MAN_LF_B06) \
+		      $(DOC_LINK_MAN_LF_B07) \
+		      $(DOC_LINK_MAN_LF_B08) \
+		      $(DOC_LINK_MAN_LF_B09) \
+		      $(DOC_LINK_MAN_LF_B10) \
+		      $(DOC_LINK_MAN_LF_B11) \
+		      $(DOC_LINK_MAN_LF_B12) \
+		      $(DOC_LINK_MAN_LF_B13) \
+		      $(DOC_LINK_MAN_LF_B14) \
+		      $(DOC_LINK_MAN_LF_B15)
+
+DOC_SRC_HTML_SL =     $(SRCDIR_DOC)/JudySL_3x.htm
+DOC_OBJ_HTML_SL =     $(DELDIR_DOC)/JudySL_3x.htm
+DOC_OBJ_MAN_SL =      $(DELDIR_MAN)/JudySL.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_SL_B1 =  $(DELDIR_MAN)/JSLG.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SL_B2 =  $(DELDIR_MAN)/JSLI.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SL_B3 =  $(DELDIR_MAN)/JSLD.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SL_B4 =  $(DELDIR_MAN)/JSLF.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SL_B5 =  $(DELDIR_MAN)/JSLN.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SL_B6 =  $(DELDIR_MAN)/JSLL.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SL_B7 =  $(DELDIR_MAN)/JSLP.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SL_B8 =  $(DELDIR_MAN)/JSLFA.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_SL =    $(DOC_LINK_MAN_SL_B1) \
+		      $(DOC_LINK_MAN_SL_B2) \
+		      $(DOC_LINK_MAN_SL_B3) \
+		      $(DOC_LINK_MAN_SL_B4) \
+		      $(DOC_LINK_MAN_SL_B5) \
+		      $(DOC_LINK_MAN_SL_B6) \
+		      $(DOC_LINK_MAN_SL_B7) \
+		      $(DOC_LINK_MAN_SL_B8)
+
+DOC_SRC_HTML_SLF =    $(SRCDIR_DOC)/JudySL_funcs_3x.htm
+DOC_OBJ_HTML_SLF =    $(DELDIR_DOC)/JudySL_funcs_3x.htm
+DOC_OBJ_MAN_SLF =     $(DELDIR_MAN)/JudySL_funcs.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_SLF_B1 = $(DELDIR_MAN)/JudySLGet.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SLF_B2 = $(DELDIR_MAN)/JudySLIns.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SLF_B3 = $(DELDIR_MAN)/JudySLDel.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SLF_B4 = $(DELDIR_MAN)/JudySLFirst.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SLF_B5 = $(DELDIR_MAN)/JudySLNext.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SLF_B6 = $(DELDIR_MAN)/JudySLLast.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SLF_B7 = $(DELDIR_MAN)/JudySLPrev.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_SLF_B8 = $(DELDIR_MAN)/JudySLFreeArray.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_SLF =   $(DOC_LINK_MAN_SLF_B1) \
+		      $(DOC_LINK_MAN_SLF_B2) \
+		      $(DOC_LINK_MAN_SLF_B3) \
+		      $(DOC_LINK_MAN_SLF_B4) \
+		      $(DOC_LINK_MAN_SLF_B5) \
+		      $(DOC_LINK_MAN_SLF_B6) \
+		      $(DOC_LINK_MAN_SLF_B7) \
+		      $(DOC_LINK_MAN_SLF_B8)
+
+DOC_SRC_HTML_HS =     $(SRCDIR_DOC)/JudyHS_3x.htm
+DOC_OBJ_HTML_HS =     $(DELDIR_DOC)/JudyHS_3x.htm
+DOC_OBJ_MAN_HS =      $(DELDIR_MAN)/JudyHS.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_HS_B1 =  $(DELDIR_MAN)/JHSG.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_HS_B2 =  $(DELDIR_MAN)/JHSI.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_HS_B3 =  $(DELDIR_MAN)/JHSD.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_HS_B4 =  $(DELDIR_MAN)/JHSFA.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_HS =    $(DOC_LINK_MAN_HS_B1) \
+		      $(DOC_LINK_MAN_HS_B2) \
+		      $(DOC_LINK_MAN_HS_B3) \
+		      $(DOC_LINK_MAN_HS_B4)
+
+DOC_SRC_HTML_HSF =    $(SRCDIR_DOC)/JudyHS_funcs_3x.htm
+DOC_OBJ_HTML_HSF =    $(DELDIR_DOC)/JudyHS_funcs_3x.htm
+DOC_OBJ_MAN_HSF =     $(DELDIR_MAN)/JudyHS_funcs.3x$(MANFILE_SUFFIX)
+
+DOC_LINK_MAN_HSF_B1 = $(DELDIR_MAN)/JudyHSGet.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_HSF_B2 = $(DELDIR_MAN)/JudyHSIns.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_HSF_B3 = $(DELDIR_MAN)/JudyHSDel.3x$(MANFILE_SUFFIX)
+DOC_LINK_MAN_HSF_B4 = $(DELDIR_MAN)/JudyHSFreeArray.3x$(MANFILE_SUFFIX)
+
+DOC_LINKS_MAN_HSF =   $(DOC_LINK_MAN_HSF_B1) \
+		      $(DOC_LINK_MAN_HSF_B2) \
+		      $(DOC_LINK_MAN_HSF_B3) \
+		      $(DOC_LINK_MAN_HSF_B4)
+
+DOC_SRC_README	      = $(SRCDIR_DOC)/README_deliver
+DOC_OBJ_README	      = $(DELDIR_DOC)/README
+
+DOC_SRC_COPYRIGHT     = $(SRCDIR_DOC)/COPYRIGHT
+DOC_OBJ_COPYRIGHT     = $(DELDIR_DOC)/COPYRIGHT
+
+DOC_SRC_LICENSE	      = $(SRCDIR_DOC)/LICENSE
+DOC_OBJ_LICENSE	      = $(DELDIR_DOC)/LICENSE
+
+DOC_SRC_TENMINUTE     = $(SRCDIR_DOC_INT)/10minutes.htm
+
+DOCS =	$(DOC_OBJ_HTML)			\
+	$(DOC_OBJ_HTML_1)		\
+	$(DOC_OBJ_HTML_1F)		\
+	$(DOC_OBJ_HTML_L)		\
+	$(DOC_OBJ_HTML_LF)		\
+	$(DOC_OBJ_HTML_SL)		\
+	$(DOC_OBJ_HTML_SLF)		\
+	$(DOC_OBJ_HTML_HS)		\
+	$(DOC_OBJ_HTML_HSF)		\
+	$(DOC_OBJ_MAN)			\
+	$(DOC_OBJ_MAN_1)		\
+	$(DOC_OBJ_MAN_1F)		\
+	$(DOC_OBJ_MAN_L)		\
+	$(DOC_OBJ_MAN_LF)		\
+	$(DOC_OBJ_MAN_SL)		\
+	$(DOC_OBJ_MAN_SLF)		\
+	$(DOC_OBJ_MAN_HS)		\
+	$(DOC_OBJ_MAN_HSF)		\
+	$(DOC_LINKS_MAN_1)		\
+	$(DOC_LINKS_MAN_1F)		\
+	$(DOC_LINKS_MAN_L)		\
+	$(DOC_LINKS_MAN_LF)		\
+	$(DOC_LINKS_MAN_SL)		\
+	$(DOC_LINKS_MAN_SLF)		\
+	$(DOC_LINKS_MAN_HS)		\
+	$(DOC_LINKS_MAN_HSF)		\
+	$(DOC_OBJ_README)		\
+	$(DOC_OBJ_COPYRIGHT)		\
+	$(DOC_OBJ_LICENSE)
+
+
+###############################################################################
+# DELIVERABLES:  DEMOS
+#
+# Demo files that are "built" simply by being copied/renamed from source
+# locations.  The first two are renamed from *_deliver to no suffix.
+
+DEMO_SRC_README   = $(SRCDIR_DEMO)/README_deliver
+DEMO_SRC_RUN_DEMO = $(SRCDIR_DEMO)/run_demo
+DEMO_SRC_MAKEFILE = $(SRCDIR_DEMO)/Makefile_deliver
+DEMO_SRC_FUNHIST  = $(SRCDIR_DEMO)/funhist.c
+DEMO_SRC_INTERL   = $(SRCDIR_DEMO)/interL.c
+DEMO_SRC_INTERSL  = $(SRCDIR_DEMO)/interSL.c
+DEMO_SRC_JUDYSORT = $(SRCDIR_DEMO)/JudySort.c
+
+DEMO_OBJ_README   = $(DELDIR_DEMO)/README
+DEMO_OBJ_RUN_DEMO = $(DELDIR_DEMO)/run_demo
+DEMO_OBJ_MAKEFILE = $(DELDIR_DEMO)/Makefile
+DEMO_OBJ_FUNHIST  = $(DELDIR_DEMO)/funhist.c
+DEMO_OBJ_INTERL   = $(DELDIR_DEMO)/interL.c
+DEMO_OBJ_INTERSL  = $(DELDIR_DEMO)/interSL.c
+DEMO_OBJ_JUDYSORT = $(DELDIR_DEMO)/JudySort.c
+
+DEMOS =	$(DEMO_OBJ_README)	\
+	$(DEMO_OBJ_RUN_DEMO)	\
+	$(DEMO_OBJ_MAKEFILE)	\
+	$(DEMO_OBJ_FUNHIST)	\
+	$(DEMO_OBJ_INTERL)	\
+	$(DEMO_OBJ_INTERSL)	\
+	$(DEMO_OBJ_JUDYSORT)
+
+
+###############################################################################
+# TESTS:  AUTO
+#
+# Test compilation for Judy.h:
+
+EXEC_JH_CHECK_SRC = $(SRCDIR_SRC)/Judy.h.check.c
+EXEC_JH_CHECK_OBJ = $(INTDIR)/Judy.h.check
+
+
+###############################################################################
+# LISTS:  OFFICIAL SOURCEFILES
+#
+# First list files which should be included in BOTH source tarchives for public
+# delivery AND the list of files to grep; a subset of all "source" files in the
+# history-managed tree, excluding both files not known to this makefile, and
+# files inappropriate for open-source distribution:
+
+SOURCEFILES_BASE =			\
+		$(SRC_CONFIGURE)	\
+		$(SRC_INSTALL_IT)	\
+		$(SRC_COPYING)		\
+		$(MAKEFILE_MASTER)	\
+		$(MAKEFILE_PARTS)	\
+		$(SRCS_README)		\
+		$(HEADERS_LIST)		\
+		$(HEADERS_C)		\
+		$(HEADERS_1)		\
+		$(HEADERS_L)		\
+		$(SRCS_C)		\
+		$(SRCS_1)		\
+		$(SRCS_L)		\
+		$(SRCS_MISC1)		\
+		$(SRCS_TOOL)		\
+		$(DOC_SRC_HTML)		\
+		$(DOC_SRC_HTML_1)	\
+		$(DOC_SRC_HTML_1F)	\
+		$(DOC_SRC_HTML_L)	\
+		$(DOC_SRC_HTML_LF)	\
+		$(DOC_SRC_HTML_SL)	\
+		$(DOC_SRC_HTML_SLF)	\
+		$(DOC_SRC_README)	\
+		$(DEMO_SRC_README)	\
+		$(DEMO_SRC_RUN_DEMO)	\
+		$(DEMO_SRC_MAKEFILE)	\
+		$(DEMO_SRC_FUNHIST)	\
+		$(DEMO_SRC_INTERL)	\
+		$(DEMO_SRC_INTERSL)	\
+		$(DEMO_SRC_JUDYSORT)	\
+		$(EXEC_JH_CHECK_SRC)
+
+# Superset list of sourcefiles to include in source delivery package, which is
+# $SOURCEFILES_BASE plus any non-grep'able files excluded from
+# $SOURCEFILES_GREP:
+
+SOURCEFILES_DELIVER =			\
+		$(SOURCEFILES_BASE)	\
+		$(DOC_SRC_TENMINUTE)
+
+# Superset list of sourcefiles to search:
+#
+# See "list_check" rule for how to check this list against a sandbox.
+#
+# Note:  Exclude non-grep'able files from this list.
+
+SOURCEFILES_GREP =			\
+		$(SOURCEFILES_BASE)	\
+		$(SRC_INSTALL_TABLE)	\
+		$(DOC_SRC_COPYRIGHT)	\
+		$(DOC_SRC_LICENSE)
+
+#		$(HEADERS_MISC2)	
+#		$(SRCS_MISC2)		
+#		$(DOC_SRC_HTML_HS)	
+
+###############################################################################
+# RULES:  BASIC "EXPORTED" PSEUDO-TARGETS
+#
+# To make all delivered files, "make" or "make all".
+#
+# To make just the *.a librar(ies), "make libs"; otherwise choose a specific
+# (possibly platform-specific) library virtual target name, like lib11_32a.
+#
+# Warning:  If you like to make very specific targets by name, don't depend too
+# widely on "dirs", because it's a pseudo-target that is never actually built
+# (and it doesn't seem to work to have make depend on the directories that
+# "dirs" creates).  Setting detailed targets to depend on it causes unnecessary
+# additional builds to occur.  Instead, before hand-making specific targets
+# that don't depend on dirs directly, "make dirs" as necessary, or make other
+# targets that depend on it, to create the directory tree,
+#
+# Note:  There's no provision for building lib20_32a on hpux_pa because the
+# main reason for building lib20_32sl is for better dynamic library
+# performance.
+#
+# Note:  The libs_pic target is for building HPUX or Linux PIC libraries not
+# delivered; and only those which have actually been requested.
+#
+# TBD:  The "libs*" targets don't allow for building on a pre-11.00 HPUX
+# system.
+
+all:		makefile header libs_all docs demos install_table done
+makefile:	$(MAKEFILE_CONS)
+header:		dirs $(HEADER_DEL)
+lib:		dirs $(LIB_LIST)
+libs:		dirs $(LIBS_LIST)
+libs_all:	dirs $(LIBS_ALL_LIST)
+libs_pic:	dirs $(LIBS_PIC_LIST)
+docs:		dirs $(DOCS)
+demos:		dirs $(DEMOS)
+install_table:	$(OBJ_INSTALL_TABLE)
+done:;		$(ANNOUNCE) 'make completed'
+
+
+###############################################################################
+# RULES:  MAKEFILE:
+#
+# Support for making a default-named Makefile (for recursive calls), using the
+# "appropriate method", when the master makefile is invoked directly via make
+# -f:
+#
+# Note:  The constructed makefile should be newer than the master when created
+# by configure, hence not revised by this rule in that case, but this is not
+# reliable if the system clock is older than the one where the source tarchive
+# is built.
+#
+# Note:  Indent the stdout from $SRC_CONFIGURE so it doesn't appear to be an
+# error when processed by makelog.
+
+$(MAKEFILE_CONS): $(MAKEFILE_MASTER)
+	$(ANNOUNCE) "making $@"
+	$(SRC_CONFIGURE) -f $(FLAVOR) | sed 's/^/    /'
+
+
+###############################################################################
+# RULES:  LIBRARIES:  HPUX
+#
+# Virtual targets for libraries, whose rules do a single recursive call of the
+# makefile; see file header comments:
+#
+# Note:  When invoked with single target names, make says "up to date" for
+# files that are up to date, but assume this never happens on an overnight
+# build from scratch, so it doesn't appear as a false error.  In fact the use
+# of virtual rather than real targets here seems to prevent the problem
+# completely.
+#
+# Library targets for hpux_pa:
+
+lib11_32a:  dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/pa11_32'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB11_32)'		\
+	PIC_SED=''					\
+	PREBUILT='_32'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib11_32sl: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/pa11_32-PIC'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='sl'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB11_32) +z'		\
+	PIC_SED="$(PIC_SED_VALUE)"			\
+	PREBUILT='_32'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+# Note:  For the lib20_32sl case, hide (indent) the linker warning:
+
+lib20_32sl: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/pa20_32'			\
+	INTDIR_SUFFIX='/pa20_32-PIC'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='sl'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB20_32) +z'		\
+	PIC_SED="$(PIC_SED_VALUE)"			\
+	PREBUILT='_32'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH) 2>&1 | \
+	sed '/ld: (Warning) At least one PA 2.0 object file (.*) was detected. The linked output may not run on a PA 1.x system./s/^/	/'
+
+lib20_64a:  dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/pa20_64'			\
+	INTDIR_SUFFIX='/pa20_64'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB20_64)'		\
+	PIC_SED=''					\
+	PREBUILT='_64'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib20_64sl: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/pa20_64'			\
+	INTDIR_SUFFIX='/pa20_64-PIC'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='sl'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB20_64) +z'		\
+	PIC_SED="$(PIC_SED_VALUE)"			\
+	PREBUILT='_64'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+# The following rules support building optional PIC libraries, not normally
+# shipped with the product, that are useful to people using Judy in their own
+# shlibs who cannot depend on libJudy.sl:
+#
+# Note:  These libs depend on the same *.o files as some of the *.sl libs
+# above, so they are only rebuilt if necessary.  In other words, these targets
+# are mainly repackagings, not different builds.
+
+lib20_32PICa: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/pa20_32'			\
+	INTDIR_SUFFIX='/pa20_32-PIC'			\
+	PIC_SUFFIX='-PIC'				\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB20_32) +z'		\
+	PIC_SED="$(PIC_SED_VALUE)"			\
+	PREBUILT='_32'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH) 2>&1 | \
+	sed '/ld: (Warning) At least one PA 2.0 object file (.*) was detected. The linked output may not run on a PA 1.x system./s/^/	/'
+
+lib20_64PICa: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/pa20_64'			\
+	INTDIR_SUFFIX='/pa20_64-PIC'			\
+	PIC_SUFFIX='-PIC'				\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB20_64) +z'		\
+	PIC_SED="$(PIC_SED_VALUE)"			\
+	PREBUILT='_64'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+# Library targets for hpux_ipf:
+
+lib_hpux_ipf_32a:  dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/hpux32'			\
+	INTDIR_SUFFIX='/hpux32'				\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB_HPUX_IPF_32)'	\
+	PIC_SED=''					\
+	PREBUILT='_32'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib_hpux_ipf_32sl: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/hpux32'			\
+	INTDIR_SUFFIX='/hpux32-PIC'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='so'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB_HPUX_IPF_32) +z'	\
+	PIC_SED=''					\
+	PREBUILT='_32'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+# Note:  64-bit builds of tools require special naming of cc command to use, at
+# least as of 020319; see definition of $CC_TOOL:
+
+lib_hpux_ipf_64a:  dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/hpux64'			\
+	INTDIR_SUFFIX='/hpux64'				\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB_HPUX_IPF_64)'	\
+	PIC_SED=''					\
+	PREBUILT='_64'					\
+	CC_TOOL_SUFFIX='64'				\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib_hpux_ipf_64sl: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/hpux64'			\
+	INTDIR_SUFFIX='/hpux64-PIC'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='so'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB_HPUX_IPF_64) +z'	\
+	PIC_SED=''					\
+	PREBUILT='_64'					\
+	CC_TOOL_SUFFIX='64'				\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib_hpux_ipf_32PICa: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/hpux32'			\
+	INTDIR_SUFFIX='/hpux32-PIC'			\
+	PIC_SUFFIX='-PIC'				\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB_HPUX_IPF_32) +z'	\
+	PIC_SED=''					\
+	PREBUILT='_32'					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib_hpux_ipf_64PICa: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX='/hpux64'			\
+	INTDIR_SUFFIX='/hpux64-PIC'			\
+	PIC_SUFFIX='-PIC'				\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_LIB_HPUX_IPF_64) +z'	\
+	PIC_SED=''					\
+	PREBUILT='_64'					\
+	CC_TOOL_SUFFIX='64'				\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+
+###############################################################################
+# RULES:  LIBRARIES:  LINUX
+#
+# Library targets for linux_ia32 and linux_ipf:
+#
+# Note:  Apparently PIC is not the default or sole option on some platforms, so
+# to be sure, build lib*.so with explicit PIC specified.
+
+lib32a: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/lib32a'				\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB=''					\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib32so: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/lib32so-PIC'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='so'					\
+	CC_OPTS_LIB='$(CC_OPTS_PIC)'			\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib64a: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/lib64a'				\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB=''					\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib64so: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/lib64so-PIC'			\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='so'					\
+	CC_OPTS_LIB='$(CC_OPTS_PIC)'			\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib32PICa: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/lib32so-PIC'			\
+	PIC_SUFFIX='-PIC'				\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_PIC)'			\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib64PICa: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX='/lib64so-PIC'			\
+	PIC_SUFFIX='-PIC'				\
+	LIB_SUFFIX='a'					\
+	CC_OPTS_LIB='$(CC_OPTS_PIC)'			\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+
+###############################################################################
+# RULES:  LIBRARIES:  WINDOWS
+#
+# Library targets for win_ia32 and win_ipf:
+
+lib32lib: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX=''				\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='lib'				\
+	CC_OPTS_LIB=''					\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+lib64lib: dirs header
+	$(ANNOUNCE) "making $@"
+	DELDIR_LIB_SUFFIX=''				\
+	INTDIR_SUFFIX=''				\
+	PIC_SUFFIX=''					\
+	LIB_SUFFIX='lib'				\
+	CC_OPTS_LIB=''					\
+	PIC_SED=''					\
+	PREBUILT=''					\
+	    make $(COV_RECURSE_PREP) lib_recurse $(COV_RECURSE_FINISH)
+
+# The following "recurse" rule should only be invoked in a recursive call of
+# the makefile, from one of the parent rules above.  It depends on dirs_recurse
+# so parameterized $INTDIR and $DELDIR_LIB directories get made; it depends on
+# the generic build_ID target so a parameterized buildID.o gets made; and it
+# depends on $LIB_, also parameterized, so the library gets made.
+#
+# These virtual targets exist so the parent makefile need not know the full
+# path for each parameterized real target.
+
+lib_recurse:  dirs_recurse $(LIB_)
+
+
+###############################################################################
+# RULES:  OTHER TOP-LEVEL TARGETS
+
+dirs:;	if [ ! -d "$(INTDIR)"	   ]; then mkdir -p "$(INTDIR)";      fi
+	if [ ! -d "$(OBJDIR_TOOL)" ]; then mkdir -p "$(OBJDIR_TOOL)"; fi
+	if [ ! -d "$(DELDIR_LIB)"  ]; then mkdir -p "$(DELDIR_LIB)";  fi
+	if [ ! -d "$(DELDIR_INC)"  ]; then mkdir -p "$(DELDIR_INC)";  fi
+	if [ ! -d "$(DELDIR_DOC)"  ]; then mkdir -p "$(DELDIR_DOC)";  fi
+	if [ ! -d "$(DELDIR_DEMO)" ]; then mkdir -p "$(DELDIR_DEMO)"; fi
+	if [ ! -d "$(DELDIR_MAN)"  ]; then mkdir -p "$(DELDIR_MAN)";  fi
+
+# Just remake parameterized directories needed on a recursive call:
+
+dirs_recurse:
+	if [ ! -d "$(INTDIR)"	   ]; then mkdir -p "$(INTDIR)";     fi
+	if [ ! -d "$(DELDIR_LIB)"  ]; then mkdir -p "$(DELDIR_LIB)"; fi
+
+$(HEADER_DEL): $(HEADER_EXT)
+	$(ANNOUNCE) "making $@"
+	rm -f $@
+	cp $(HEADER_EXT) $@
+
+# Generic rules for creating libraries from invocation-specific $LIB_OBJ lists:
+#
+# To keep it simple, build either a *.a (or *.lib) or a *.sl from a single
+# (parameterized) $LIB_ target, using $PIC_SUFFIX and $LIB_SUFFIX, although the
+# details differ.
+#
+# Also, pre-remove any *.a (*.lib) library file in case it's mangled; ar
+# doesn't like that.
+#
+# Note, some types of $AR insist on -r as a separate command line arg from the
+# optarg (filename), while others insist on -out:  with no separating
+# whitespace; hence $AR_OPT1 and $AR_OPT2.
+#
+# Finally, note that MKS ksh on win_ia32 doesn't seem to like:
+#
+#   if [[ (...) || (...) ]]		# must delete ().
+
+$(LIB_): $(LIB_OBJ_DEP)
+	$(ANNOUNCE) "making $@"
+	@if [ $(LIB_SUFFIX) = a ] || [ $(LIB_SUFFIX) = lib ]; then \
+	    $(ECHO) "\trm -rf $@"; \
+		       rm -rf $@;  \
+	    $(ECHO) "\t$(AR) $(AR_OPT1) $(AR_OPT2)$@ $(LIB_OBJ)"; \
+		       $(AR) $(AR_OPT1) $(AR_OPT2)$@ $(LIB_OBJ);  \
+	else \
+	    $(ECHO) "\t$(LD) $(LD_OPT_SL)      -o $@ $(LIB_OBJ)"; \
+		       $(LD) $(LD_OPT_SL)      -o $@ $(LIB_OBJ);  \
+	fi
+
+
+###############################################################################
+# RULES:  OBJECT FILES
+#
+# Yes, perhaps all of the following could be condensed using default rules or
+# name generation features like $(@F:.o=.c), but at least for now keep it
+# simple and spell them out.
+#
+# Note the special use of $CC_NOALL for $OBJ_C_M:
+
+$(OBJ_C_M): $(HEADERS) $(SRC_C_M)
+	$(ANNOUNCE) "making $@"
+	$(CC_NOALL) -c $(INCDIR_C) $(SRC_C_M) $(CCoo)$@
+
+$(OBJ_1_T): $(HEADERS2) $(HEADER_1) $(SRC_C_G)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_G) $(CCoo)$@
+
+$(OBJ_1__T): $(HEADERS2) $(HEADER_1) $(SRC_C_G)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 -DJUDYGETINLINE $(INCDIR_1) $(SRC_C_G) $(CCoo)$@
+
+# Note the allowing of coverage for inline functions for "insert" code only:
+
+$(OBJ_1_S): $(HEADERS2) $(HEADER_1) $(SRC_C_I)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_I) $(CCoo)$@
+
+$(OBJ_1_SA): $(HEADERS2) $(HEADER_1) $(SRC_C_IA)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_IA) $(CCoo)$@
+
+$(OBJ_1_U): $(HEADERS2) $(HEADER_1) $(SRC_C_D)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_D) $(CCoo)$@
+
+$(OBJ_1_F): $(HEADERS) $(HEADER_1) $(SRC_C_F)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_F) $(CCoo)$@
+
+$(OBJ_1_N): $(HEADERS2) $(HEADER_1) $(SRC_C_PN)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 -DJUDYNEXT $(INCDIR_1) $(SRC_C_PN) $(CCoo)$@
+
+$(OBJ_1_P): $(HEADERS2) $(HEADER_1) $(SRC_C_PN)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 -DJUDYPREV $(INCDIR_1) $(SRC_C_PN) $(CCoo)$@
+
+$(OBJ_1_NE): $(HEADERS2) $(HEADER_1) $(SRC_C_PNE)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 -DJUDYNEXT $(INCDIR_1) $(SRC_C_PNE) $(CCoo)$@
+
+$(OBJ_1_PE): $(HEADERS2) $(HEADER_1) $(SRC_C_PNE)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 -DJUDYPREV $(INCDIR_1) $(SRC_C_PNE) $(CCoo)$@
+
+$(OBJ_1_C): $(HEADERS2) $(HEADER_1) $(SRC_C_C)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_C_SMART) $(SRC_C_C) $(CCoo)$@
+
+$(OBJ_1_BC): $(HEADERS2) $(HEADER_1) $(SRC_C_BC)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_BC_SMART) $(SRC_C_BC) $(CCoo)$@
+
+$(OBJ_1_FA): $(HEADERS2) $(HEADER_1) $(SRC_C_FA)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_FA) $(CCoo)$@
+
+$(OBJ_1_MU): $(HEADERS2) $(HEADER_1) $(SRC_C_MU)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_MU) $(CCoo)$@
+
+$(OBJ_1_MA): $(HEADERS2) $(HEADER_1) $(SRC_C_MA)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_MA) $(CCoo)$@
+
+# Note: $OBJ_1_TB is built from a constructed source file:
+
+$(OBJ_1_TB): $(HEADERS) $(HEADER_1) $(SRC_1_TB)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_1_TB) $(CCoo)$@
+
+$(OBJ_1_CC): $(HEADERS2) $(HEADER_1) $(SRC_C_CC)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_CC) $(CCoo)$@
+
+$(OBJ_1_DC): $(HEADERS2) $(HEADER_1) $(SRC_C_DC)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_DC) $(CCoo)$@
+
+$(OBJ_1_CB): $(HEADERS2) $(HEADER_1) $(SRC_C_CB)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_CB) $(CCoo)$@
+
+$(OBJ_1_IB): $(HEADERS2) $(HEADER_1) $(SRC_C_IB)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_IB) $(CCoo)$@
+
+$(OBJ_1_MIF): $(HEADERS2) $(HEADER_1) $(SRC_C_MIF)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDY1 $(INCDIR_1) $(SRC_C_MIF) $(CCoo)$@
+
+$(OBJ_L_G): $(HEADERS2) $(HEADER_L) $(SRC_C_G)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_G) $(CCoo)$@
+
+$(OBJ_L__G): $(HEADERS2) $(HEADER_L) $(SRC_C_G)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL -DJUDYGETINLINE $(INCDIR_L) $(SRC_C_G) $(CCoo)$@
+
+# Note the allowing of coverage for inline functions for "insert" code only:
+
+$(OBJ_L_I): $(HEADERS2) $(HEADER_L) $(SRC_C_I)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_I) $(CCoo)$@
+
+$(OBJ_L_IA): $(HEADERS2) $(HEADER_L) $(SRC_C_IA)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_IA) $(CCoo)$@
+
+$(OBJ_L_D): $(HEADERS2) $(HEADER_L) $(SRC_C_D)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_D) $(CCoo)$@
+
+$(OBJ_L_F): $(HEADERS) $(HEADER_L) $(SRC_C_F)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_F) $(CCoo)$@
+
+$(OBJ_L_N): $(HEADERS2) $(HEADER_L) $(SRC_C_PN)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL -DJUDYNEXT $(INCDIR_L) $(SRC_C_PN) $(CCoo)$@
+
+$(OBJ_L_P): $(HEADERS2) $(HEADER_L) $(SRC_C_PN)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL -DJUDYPREV $(INCDIR_L) $(SRC_C_PN) $(CCoo)$@
+
+$(OBJ_L_NE): $(HEADERS2) $(HEADER_L) $(SRC_C_PNE)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL -DJUDYNEXT $(INCDIR_L) $(SRC_C_PNE) $(CCoo)$@
+
+$(OBJ_L_PE): $(HEADERS2) $(HEADER_L) $(SRC_C_PNE)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL -DJUDYPREV $(INCDIR_L) $(SRC_C_PNE) $(CCoo)$@
+
+$(OBJ_L_C): $(HEADERS2) $(HEADER_L) $(SRC_C_C)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_C_SMART) $(SRC_C_C) $(CCoo)$@
+
+$(OBJ_L_BC): $(HEADERS2) $(HEADER_L) $(SRC_C_BC)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_BC_SMART) $(SRC_C_BC) $(CCoo)$@
+
+$(OBJ_L_FA): $(HEADERS2) $(HEADER_L) $(SRC_C_FA)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_FA) $(CCoo)$@
+
+$(OBJ_L_MU): $(HEADERS2) $(HEADER_L) $(SRC_C_MU)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_MU) $(CCoo)$@
+
+$(OBJ_L_MA): $(HEADERS2) $(HEADER_L) $(SRC_C_MA)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_MA) $(CCoo)$@
+
+# Note: $OBJ_L_TB is built from a constructed source file:
+
+$(OBJ_L_TB): $(HEADERS) $(HEADER_L) $(SRC_L_TB)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_L_TB) $(CCoo)$@
+
+$(OBJ_L_CC): $(HEADERS2) $(HEADER_L) $(SRC_C_CC)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_CC) $(CCoo)$@
+
+$(OBJ_L_DC): $(HEADERS2) $(HEADER_L) $(SRC_C_DC)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_DC) $(CCoo)$@
+
+$(OBJ_L_CB): $(HEADERS2) $(HEADER_L) $(SRC_C_CB)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_CB) $(CCoo)$@
+
+$(OBJ_L_IB): $(HEADERS2) $(HEADER_L) $(SRC_C_IB)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_IB) $(CCoo)$@
+
+$(OBJ_L_MIF): $(HEADERS2) $(HEADER_L) $(SRC_C_MIF)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c -DJUDYL $(INCDIR_L) $(SRC_C_MIF) $(CCoo)$@
+
+$(OBJ_SL): $(HEADERS) $(SRC_SL)
+	$(CC) -c $(INCDIR_SL) $(SRC_SL) $(CCoo)$@
+
+$(OBJ_HS): $(HEADERS) $(SRC_HS)
+	$(ANNOUNCE) "making $@"
+	$(CC) -c $(INCDIR_HS) $(SRC_HS) $(CCoo)$@
+
+
+###############################################################################
+# RULES:  DOCUMENTS
+#
+# Spell these out for platform independence; see file header comments:
+
+$(DOC_OBJ_HTML):     $(DOC_SRC_HTML)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML) $@
+
+$(DOC_OBJ_HTML_1):   $(DOC_SRC_HTML_1)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_1) $@
+
+$(DOC_OBJ_HTML_1F):  $(DOC_SRC_HTML_1F)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_1F) $@
+
+$(DOC_OBJ_HTML_L):   $(DOC_SRC_HTML_L)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_L) $@
+
+$(DOC_OBJ_HTML_LF):   $(DOC_SRC_HTML_LF)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_LF) $@
+
+$(DOC_OBJ_HTML_SL):  $(DOC_SRC_HTML_SL)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_SL) $@
+
+$(DOC_OBJ_HTML_SLF):  $(DOC_SRC_HTML_SLF)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_SLF) $@
+
+$(DOC_OBJ_HTML_HS):  $(DOC_SRC_HTML_HS)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_HS) $@
+
+$(DOC_OBJ_HTML_HSF):  $(DOC_SRC_HTML_HSF)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DOC_SRC_HTML_HSF) $@
+
+# Spell these out for name translations:
+#
+# Note:  Since hardlinks share the same date as the master file, they cannot be
+# listed as separate rules; instead, tie them into the main $DOC_OBJ_MAN*
+# rules.
+
+$(DOC_OBJ_MAN): $(DOC_SRC_HTML) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN)
+
+$(DOC_OBJ_MAN_1) $(DOC_LINKS_MAN_1): $(DOC_SRC_HTML_1) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_1) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_1)
+	for link in $(DOC_LINKS_MAN_1); do \
+	    $(SYM_LINK) Judy1.3x$(MANFILE_SUFFIX) $$link; done
+
+$(DOC_OBJ_MAN_1F) $(DOC_LINKS_MAN_1F): $(DOC_SRC_HTML_1F) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_1F) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_1F)
+	for link in $(DOC_LINKS_MAN_1F); do \
+	    $(SYM_LINK) Judy1_funcs.3x$(MANFILE_SUFFIX) $$link; done
+
+$(DOC_OBJ_MAN_L) $(DOC_LINKS_MAN_L): $(DOC_SRC_HTML_L) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_L) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_L)
+	for link in $(DOC_LINKS_MAN_L); do \
+	    $(SYM_LINK) JudyL.3x$(MANFILE_SUFFIX) $$link; done
+
+$(DOC_OBJ_MAN_LF) $(DOC_LINKS_MAN_LF): $(DOC_SRC_HTML_LF) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_LF) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_LF)
+	for link in $(DOC_LINKS_MAN_LF); do \
+	    $(SYM_LINK) JudyL_funcs.3x$(MANFILE_SUFFIX) $$link; done
+
+$(DOC_OBJ_MAN_SL) $(DOC_LINKS_MAN_SL): $(DOC_SRC_HTML_SL) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_SL) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_SL)
+	for link in $(DOC_LINKS_MAN_SL); do \
+  	    $(SYM_LINK) JudySL.3x$(MANFILE_SUFFIX) $$link; done
+
+$(DOC_OBJ_MAN_SLF) $(DOC_LINKS_MAN_SLF): $(DOC_SRC_HTML_SLF) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_SLF) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_SLF)
+	for link in $(DOC_LINKS_MAN_SLF); do \
+	    $(SYM_LINK) JudySL_funcs.3x$(MANFILE_SUFFIX) $$link; done
+
+$(DOC_OBJ_MAN_HS) $(DOC_LINKS_MAN_HS): $(DOC_SRC_HTML_HS) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_HS) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_HS)
+	for link in $(DOC_LINKS_MAN_HS); do \
+  	    $(SYM_LINK) JudyHS.3x$(MANFILE_SUFFIX) $$link; done
+
+$(DOC_OBJ_MAN_HSF) $(DOC_LINKS_MAN_HSF): $(DOC_SRC_HTML_HSF) $(MANTOOL)
+	$(ANNOUNCE) "making $@ + links"
+	$(MANTOOL) $(DOC_SRC_HTML_HSF) | $(RMNL) | $(COMPRESSPATH) \
+	    > $(DOC_OBJ_MAN_HSF)
+	for link in $(DOC_LINKS_MAN_HSF); do \
+	    $(SYM_LINK) JudyHS_funcs.3x$(MANFILE_SUFFIX) $$link; done
+
+# Other doc rules:
+
+$(DOC_OBJ_README): $(DOC_SRC_README)
+	$(ANNOUNCE) "making $@"
+	rm -f $@
+	$(FILTERIT) < $(DOC_SRC_README) > $@
+
+# Note:  The older COPYRIGHT and LICENSE files in doc/ext/ were
+# pre-open-source, and might not be included in source deliveries, so the rules
+# allow for this.  If a needed source file is absent, it's merely touched
+# (empty) and then the main rule skips doing anything.
+
+$(DOC_SRC_COPYRIGHT):; @touch $@
+
+$(DOC_OBJ_COPYRIGHT): $(DOC_SRC_COPYRIGHT)
+	$(ANNOUNCE) "making $@"
+	if [ -s $(DOC_SRC_COPYRIGHT) ];				\
+	then							\
+	    rm -f $@;						\
+	    $(FILTERIT) < $(DOC_SRC_COPYRIGHT) > $@;		\
+	    chmod -w $@;					\
+	else							\
+	    $(ECHO) "\t$(DOC_SRC_COPYRIGHT) absent or empty, skipping."; \
+	    touch $@;						\
+	fi
+
+$(DOC_SRC_LICENSE):; @touch $@
+
+$(DOC_OBJ_LICENSE): $(DOC_SRC_LICENSE)
+	$(ANNOUNCE) "making $@"
+	if [ -s $(DOC_SRC_LICENSE) ];			\
+	then						\
+	    rm -f $@;					\
+	    $(FILTERIT) < $(DOC_SRC_LICENSE) > $@;	\
+	    chmod -w $@;				\
+	else						\
+	    $(ECHO) "\t$(DOC_SRC_LICENSE) absent or empty, skipping."; \
+	fi
+
+
+###############################################################################
+# RULES:  TOOLS
+#
+# Special rules for building Judy-specific build tools:
+#
+# TBD:  To support cross-compiling for win_ipf, always build $<base>_CONS, but
+# then copy it to $<base> if not "win_ipf", which is the cross-compile
+# platforms without native compilers; otherwise use the prebuilt executable
+# file for $PLATFORM, which ironically is actually IA32 bits (native to the
+# build system).  This way the non-cross-compile platforms, at least, always
+# get the current version of the tool, although the cross-compile contexts
+# without native compilers use pre-built executables.
+#
+# Note:  $TOOL_*_TB_CONS rules do NOT use $CC_OPTS_TOOL_GEN because they are
+# not generic tools, but rather, library-specific.
+
+$(TOOL_1_TB_CONS): $(HEADERS) $(HEADER_1) $(SRC_C_TB)
+	$(ANNOUNCE) "making $@"
+	$(CC_TOOL) -DJUDY1 $(INCDIR_1) $(SRC_C_TB) $(CCoe)$@
+
+$(TOOL_1_TB): $(TOOL_1_TB_CONS)
+	$(ANNOUNCE) "making $@"
+	if [ $(PLATFORM) != win_ipf ]; \
+	then cp -f $(TOOL_1_TB_CONS) $(TOOL_1_TB);  \
+	fi
+
+$(TOOL_L_TB_CONS): $(HEADERS) $(HEADER_L) $(SRC_C_TB)
+	$(ANNOUNCE) "making $@"
+	$(CC_TOOL) -DJUDYL $(INCDIR_L) $(SRC_C_TB) $(CCoe)$@
+
+$(TOOL_L_TB): $(TOOL_L_TB_CONS)
+	$(ANNOUNCE) "making $@"
+	if [ $(PLATFORM) != win_ipf ]; \
+	then cp -f $(TOOL_L_TB_CONS) $(TOOL_L_TB); \
+	fi
+
+$(MANTOOL_CONS): $(MANTOOL_SRC)
+	$(ANNOUNCE) "making $@"
+	$(CC_TOOL) $(CC_OPTS_TOOL_GEN) $(MANTOOL_SRC) $(CCoe)$@
+
+$(MANTOOL): $(MANTOOL_CONS)
+	$(ANNOUNCE) "making $@"
+	if [ $(PLATFORM) != win_ipf ]; \
+	then cp -f $(MANTOOL_CONS) $(MANTOOL); \
+	fi
+
+###############################################################################
+# RULES:  DEMOS
+
+$(DEMO_OBJ_README):   $(DEMO_SRC_README)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DEMO_SRC_README) $@
+
+$(DEMO_OBJ_RUN_DEMO): $(DEMO_SRC_RUN_DEMO)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DEMO_SRC_RUN_DEMO) $@
+
+$(DEMO_OBJ_MAKEFILE): $(DEMO_SRC_MAKEFILE)
+	$(ANNOUNCE) "making $@"
+	rm -f $@
+	$(FILTERIT) < $(DEMO_SRC_MAKEFILE) > $@
+
+$(DEMO_OBJ_FUNHIST):  $(DEMO_SRC_FUNHIST)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DEMO_SRC_FUNHIST) $@
+
+$(DEMO_OBJ_INTERL):  $(DEMO_SRC_INTERL)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DEMO_SRC_INTERL) $@
+
+$(DEMO_OBJ_INTERSL):  $(DEMO_SRC_INTERSL)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DEMO_SRC_INTERSL) $@
+
+$(DEMO_OBJ_JUDYSORT): $(DEMO_SRC_JUDYSORT)
+	$(ANNOUNCE) "making $@"
+	cp -f $(DEMO_SRC_JUDYSORT) $@
+
+###############################################################################
+# RULES:  EXAMPLES, TARCHIVE:
+#
+# To prepare example sources for delivery, copy them to the delivery tree.  To
+# keep this rule simple and easy to maintain, rather than listing every file
+# and rename explicitly and allowing make to only the out-of-date files, follow
+# some generic rules and rebuild everything every time.
+#
+# First cpio the files of interest, excluding non-shipped files, then rename
+# anything ending in *_deliver to the non-suffixed basename, possibly on top of
+# another file.  (I don't know of a way to tell cpio to rename files on the
+# fly.)
+
+examples: dirs
+	find $(SRCDIR_APPS) $(SRCDIR_FUNCS) | \
+	grep -v -e '/noship$$/' -e '/noship/' -e '\.sbcm' | \
+	cpio -pvdum $(DELDIR)
+	find $(DELDIR)/$(SRCDIR_APPS) $(DELDIR)/$(SRCDIR_FUNCS) \
+	    -name '*_deliver' | \
+	while read source; do mv -f "$$source" "$${source%_deliver}"; done
+
+# All tarchives:
+
+tarchives: tarchive_src tarchive_del tarchive_examples
+
+# The tarchive_src rule is simple because it has no build ID and it drops the
+# tarchive in the top of the source tree; however, to have tar include only a
+# subset of all source files, it must first copy them to a temporary tree:
+
+tarchive_src: $(TARCHIVE_SRC)
+
+$(TARCHIVE_SRC): $(ALWAYS)
+	$(ANNOUNCE) "making $@"
+	tempdir='$(TARCHIVE_SRC_TEMPDIR)';		\
+	rm -rf $$tempdir;				\
+	for file in $(SOURCEFILES_DELIVER);		\
+	do  mkdir -p $$tempdir/`dirname $$file`;	\
+	    cp -f $$file $$tempdir/$$file;		\
+	done;						\
+	tar cvf $(TARCHIVE_SRC_BASE) $$tempdir;		\
+	gzip -f $(TARCHIVE_SRC_BASE)
+	rm -rf $(TARCHIVE_SRC_TEMPDIR)
+
+# The tarchive_del rule is complicated because:
+#
+# - It does not package files under $SRCDIR_APPS and $SRCDIR_FUNCS, which are
+#   delivered separately.  It also excludes any previously built tarchives!
+#
+# - It temporarily copies $DELDIR, except the $SRCDIR_* files just mentioned,
+#   to a temporary subdirectory for setting file attributes.
+#
+# Note:  The $TARCHIVE_DEL target used to depend on "all", but as a result it
+# modified the build ID every time, which was not idempotent for packaging.
+
+tarchive_del: $(TARCHIVE_DEL)
+
+# Note:  $TARCHIVE_DEL used to depend on $TARCHIVE_LIBS_PIC (set by
+# platform.*.mk to null or libs_pic) so these variations get built and
+# included.  We decided 020228 to not include libs_pic in $TARCHIVE_DEL by
+# default (since this rule picks up all deliver/ tree files except specific
+# cases).  To build a tarchive including libs_pic, make them first.
+#
+
+# $(TARCHIVE_DEL): $(TARCHIVE_LIBS_PIC)	# see above.
+$(TARCHIVE_DEL):
+	$(ANNOUNCE) "making $@"
+	cd $(DELDIR) &&							\
+	abspath=`$(PWD)` &&						\
+	tempdir="$$abspath/../temp" && mkdir "$$tempdir" &&		\
+	find . | grep -v -e "/$(SRCDIR_APPS)$$"  -e "/$(SRCDIR_APPS)/"	\
+			 -e "/$(SRCDIR_FUNCS)$$" -e "/$(SRCDIR_FUNCS)/"	\
+			 -e "/$(TARCHIVE_DEL_BASE)"			\
+			 -e "/$(TARCHIVE_EXAMPLES_BASE)" |		\
+	    cpio -padmu "$$tempdir" &&					\
+	find "$$tempdir" | xargs chmod -w  &&				\
+	find "$$tempdir" | xargs chgrp bin &&				\
+	find "$$tempdir" | while read file; do				\
+			   [ ! -O "$$file" ] || chown bin "$$file"; done && \
+	realtar="$$abspath/$(TARCHIVE_DEL_BASE)" &&			\
+	cd "$$tempdir" &&						\
+	tar cvf "$$realtar" * && chmod +r "$$realtar"; cd /;		\
+	gzip -f $$realtar;						\
+	rm -rf "$$tempdir"
+
+# This rule is similar to the previous, but:
+#
+# - Since examples runs unconditionally, it doesn't depend on any other rules.
+#
+# - It finds and packages files under $SRCDIR_APPS and $SRCDIR_FUNCS rather
+#   than excluding them.
+#
+# See $TARCHIVE_DEL rule above about the chown below.
+
+tarchive_examples: $(TARCHIVE_EXAMPLES)
+
+$(TARCHIVE_EXAMPLES):
+	$(ANNOUNCE) "making $@"
+	cd $(DELDIR) &&							\
+	abspath=`$(PWD)` &&						\
+	tempdir="$$abspath/../temp" && mkdir "$$tempdir" &&		\
+	find $(SRCDIR_APPS) $(SRCDIR_FUNCS) |				\
+	    cpio -padmu "$$tempdir" &&					\
+	find "$$tempdir" | xargs chmod -w  &&				\
+	find "$$tempdir" | xargs chgrp bin &&				\
+	find "$$tempdir" | while read file; do				\
+			   [ ! -O "$$file" ] || chown bin "$$file"; done && \
+	realtar="$$abspath/$(TARCHIVE_EXAMPLES_BASE)" &&		\
+	cd "$$tempdir" &&						\
+	tar cvf "$$realtar" * && chmod +r "$$realtar"; cd /;		\
+	gzip -f $$realtar;						\
+	rm -rf "$$tempdir"
+
+
+###############################################################################
+# RULES:  INSTALL, UNINSTALL
+#
+# Like the tarchive_del rule, these rules do not depend on anything else, they
+# just grab whatever was last built for the platform and flavor.  However,
+# failure to find a "known" directory is an error which is reported.
+#
+# Note:  These rules probably fail unless invoked by superuser.  Also for
+# safety some constants are hard-coded here rather than being parameterized.
+#
+# Note:  These rules could be, but for simplicity are not, much more detailed
+# and explicit about the directories and files expected under $DELDIR, checking
+# for their presence before acting, etc.  The install target simply checks that
+# four key, expected directories are present, although the copy itself from
+# $DELDIR depends on cp -r semantics.
+#
+# Note:  When these rules run (non-recursively as usual), $DELDIR_LIB_SUFFIX is
+# null, and that's good.
+#
+# Note:  Set owners+groups on /opt/Judy directories, but symlinks are a
+# don't-care and public directories can be root.
+#
+install:
+	$(ANNOUNCE) "making $@"
+	for dir in $(DELDIR_LIB) $(DELDIR_INC) $(DELDIR_DOC) $(DELDIR_MAN); \
+	do								\
+	    if [ ! -d $$dir ];						\
+	    then							\
+		echo >&2 "install target: Missing directory \"$$dir\";"	\
+			 "need a complete build (\"make\") to install.";\
+		exit 1;							\
+	    fi;								\
+	done &&								\
+	mkdir -p /opt &&						\
+	rm -rf /opt/Judy &&						\
+	cp -r $(DELDIR) /opt/Judy &&					\
+	find /opt/Judy -type d | xargs chmod a+r,a-w,a+x &&		\
+	find /opt/Judy -type f | xargs chmod a+r,a-w     &&		\
+	cd /opt/Judy &&							\
+	find * -type d | while read dir; do mkdir -p /$$dir; done &&	\
+	find * -type f | while read file; do				\
+				    rm -f /$$file;			\
+				    ln -s /opt/Judy/$$file /$$file; done
+	$(ANNOUNCE) "Judy install complete; see INSTALL_IT file for next step"
+
+# See comments above.  Also, uninstall removes $DELDIR_DOC (actually the
+# hard-coded absolute path) since the Judy package owns that directory.
+
+uninstall:
+	$(ANNOUNCE) "making $@"
+	cd $(OBJDIR_OPT) && \
+	find * -type f | while read file; do rm -f /$$file; done
+	rm -rf $(OBJDIR_OPT) /usr/share/doc/Judy
+
+check:
+	$(ANNOUNCE) "Checkit $@"
+	cd $(SRCDIR_TEST_MANUAL) && CC='$(CCPATH)' ./Checkit | grep "==="
+
+###############################################################################
+# RULES:  MISCELLANEOUS
+
+checkJh: $(EXEC_JH_CHECK_OBJ)
+
+$(EXEC_JH_CHECK_OBJ): $(HEADER_EXT) $(EXEC_JH_CHECK_SRC) lib
+	$(ANNOUNCE) "making $@"
+	$(CC) -I$(SRCDIR_SRC) $(CCoe)$@ $(EXEC_JH_CHECK_SRC) $(LIB_ID)
+
+clean:;	@$(ECHO) "Error:  The Judy makefile is complex enough, and make" \
+	      "itself is dumb enough about unbuilding, that this makefile" \
+	      "does not know how to do partial cleans.  Use \"make clobber\"" \
+	      "or remove directories/files by hand."
+
+clobber:; rm -rf $(SRCDIR_SRC)/$(PLATFORM)
+
+# Remove files known to be created by this makefile, including some (the first
+# remove command) that are created empty by this makefile when not delivered in
+# the source package:
+
+distclean: clobber
+	rm -rf  $(MAKEFILE_CONS) $(OBJDIR_TOOL)				\
+		$(DOC_SRC_COPYRIGHT) $(DOC_SRC_LICENSE)	
+	rm -rf  ./interL
+
+# List "official" source files plus README files, except those in $PLATFORM
+# subdirectories; strip any leading "./" strings:
+
+list:; @{ \
+	    find $(SRCDIR_SRC) -type f -name README |	\
+	    grep -v -e "^$(SRCDIR_SRC)/hpux"		\
+		    -e "^$(SRCDIR_SRC)/linux"		\
+		    -e "^$(SRCDIR_SRC)/win" ;		\
+	    for file in $(SOURCEFILES_GREP); do $(ECHO) $$file; done; \
+	}		|				\
+	sed 's/^\.\///'	|				\
+	sort -u
+
+# Check the list against files actually present, excluding SoftCM .sbcm files
+# if any, but NOT excluding anything else, including perhaps constructed files
+# (except the many that might be in platform-specific subdirectories) and
+# spurious (local only) files; let the user do the comparison:
+
+list_check: makefile
+	trap "rm -rf temp; exit" 0 1 2 3;	\
+	make list > temp;			\
+	$(ECHO) '\nEXPECT\tFOUND\n';		\
+	find $(SRCDIR_TOP) -type f	|	\
+	sed 's/^\.\///'			|	\
+	grep -v -e "^$(SRCDIR_SRC)/hpux"	\
+		-e "^$(SRCDIR_SRC)/linux"	\
+		-e "^$(SRCDIR_SRC)/win"		\
+		-e '^temp$$'			\
+		-e '\.sbcm'		|	\
+	sort				|	\
+	comm -3 temp -
+	rm -f temp
+
+# The following appears necessary to keep make from thinking <name>.o depends
+# on <name>.c, even when there's an explicit rule for building <name>.o from
+# some other file, because then it creates some *.c files that are only needed
+# for lint:
+#
+# And the non-null list keeps make silent about this change.
+
+.SUFFIXES:
+.SUFFIXES: .x.y
+
+
+###############################################################################
+# RULES:  CONSTRUCTED *.c FILES
+#
+
+$(SRC_1_T): $(SRC_C_G)
+	$(FILTERIT) < $(SRC_C_G) > $@
+
+$(SRC_L_G): $(SRC_C_G)
+	$(FILTERIT) < $(SRC_C_G) > $@
+
+$(SRC_1_S): $(SRC_C_I)
+	$(FILTERIT) < $(SRC_C_I) > $@
+
+$(SRC_L_I): $(SRC_C_I)
+	$(FILTERIT) < $(SRC_C_I) > $@
+
+$(SRC_1_SA): $(SRC_C_IA)
+	$(FILTERIT) < $(SRC_C_IA) > $@
+
+$(SRC_L_IA): $(SRC_C_IA)
+	$(FILTERIT) < $(SRC_C_IA) > $@
+
+$(SRC_1_U): $(SRC_C_D)
+	$(FILTERIT) < $(SRC_C_D) > $@
+
+$(SRC_L_D): $(SRC_C_D)
+	$(FILTERIT) < $(SRC_C_D) > $@
+
+$(SRC_1_F): $(SRC_C_F)
+	$(FILTERIT) < $(SRC_C_F) > $@
+
+$(SRC_L_F): $(SRC_C_F)
+	$(FILTERIT) < $(SRC_C_F) > $@
+
+$(SRC_1_N): $(SRC_C_PN)
+	$(FILTERIT) < $(SRC_C_PN) > $@
+
+$(SRC_1_P): $(SRC_C_PN)
+	$(FILTERIT) < $(SRC_C_PN) > $@
+
+$(SRC_1_NE): $(SRC_C_PNE)
+	$(FILTERIT) < $(SRC_C_PNE) > $@
+
+$(SRC_1_PE): $(SRC_C_PNE)
+	$(FILTERIT) < $(SRC_C_PNE) > $@
+
+$(SRC_L_N): $(SRC_C_PN)
+	$(FILTERIT) < $(SRC_C_PN) > $@
+
+$(SRC_L_P): $(SRC_C_PN)
+	$(FILTERIT) < $(SRC_C_PN) > $@
+
+$(SRC_L_NE): $(SRC_C_PNE)
+	$(FILTERIT) < $(SRC_C_PNE) > $@
+
+$(SRC_L_PE): $(SRC_C_PNE)
+	$(FILTERIT) < $(SRC_C_PNE) > $@
+
+$(SRC_1_C): $(SRC_C_C)
+	$(FILTERIT) < $(SRC_C_C) > $@
+
+$(SRC_L_C): $(SRC_C_C)
+	$(FILTERIT) < $(SRC_C_C) > $@
+
+$(SRC_1_BC): $(SRC_C_BC)
+	$(FILTERIT) < $(SRC_C_BC) > $@
+
+$(SRC_L_BC): $(SRC_C_BC)
+	$(FILTERIT) < $(SRC_C_BC) > $@
+
+$(SRC_1_FA): $(SRC_C_FA)
+	$(FILTERIT) < $(SRC_C_FA) > $@
+
+$(SRC_L_FA): $(SRC_C_FA)
+	$(FILTERIT) < $(SRC_C_FA) > $@
+
+$(SRC_1_MU): $(SRC_C_MU)
+	$(FILTERIT) < $(SRC_C_MU) > $@
+
+$(SRC_L_MU): $(SRC_C_MU)
+	$(FILTERIT) < $(SRC_C_MU) > $@
+
+$(SRC_1_MA): $(SRC_C_MA)
+	$(FILTERIT) < $(SRC_C_MA) > $@
+
+$(SRC_L_MA): $(SRC_C_MA)
+	$(FILTERIT) < $(SRC_C_MA) > $@
+
+# Note:  $SRC_*_TB are actually built by building and running a program
+
+$(SRC_1_TB): $(TOOL_1_TB)
+	$(ANNOUNCE) "making $@"
+	rm -f $@
+	$(TOOL_1_TB) > $@
+
+$(SRC_L_TB): $(TOOL_L_TB)
+	$(ANNOUNCE) "making $@"
+	rm -f $@
+	$(TOOL_L_TB) > $@
+
+$(SRC_1_CC): $(SRC_C_CC)
+	$(FILTERIT) < $(SRC_C_CC) > $@
+
+$(SRC_L_CC): $(SRC_C_CC)
+	$(FILTERIT) < $(SRC_C_CC) > $@
+
+$(SRC_1_DC): $(SRC_C_DC)
+	$(FILTERIT) < $(SRC_C_DC) > $@
+
+$(SRC_L_DC): $(SRC_C_DC)
+	$(FILTERIT) < $(SRC_C_DC) > $@
+
+$(SRC_1_CB): $(SRC_C_CB)
+	$(FILTERIT) < $(SRC_C_CB) > $@
+
+$(SRC_L_CB): $(SRC_C_CB)
+	$(FILTERIT) < $(SRC_C_CB) > $@
+
+$(SRC_1_IB): $(SRC_C_IB)
+	$(FILTERIT) < $(SRC_C_IB) > $@
+
+$(SRC_L_IB): $(SRC_C_IB)
+	$(FILTERIT) < $(SRC_C_IB) > $@
+
+$(SRC_1_MIF): $(SRC_C_MIF)
+	$(FILTERIT) < $(SRC_C_MIF) > $@
+
+$(SRC_L_MIF): $(SRC_C_MIF)
+	$(FILTERIT) < $(SRC_C_MIF) > $@

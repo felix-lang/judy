@@ -1,0 +1,88 @@
+#!/bin/sh
+# @(#) $Revision: 4.5 $ $Source: /judy/test/manual/Checkit $
+echo
+echo "=== +++++++++ This test runs in 15 seconds on a PIII 750Mhz +++++++"
+
+LIBJUDY=`find ../ -name libJudy.a`
+#LIBJUDY='../../src/JudyCommon/libJudy.a'
+JUDY_H=`find ../ -name Judy.h`
+INCLUDE=-I../src/
+
+cc $INCLUDE -O SLcompare.c         -DHASHMETHOD     -o SL_Hash
+cc $INCLUDE -O SLcompare.c         -DSPLAYMETHOD    -o SL_Splay
+cc $INCLUDE -O SLcompare.c         -DREDBLACKMETHOD -o SL_Redblack
+echo
+echo Compiling with Judy library: $LIBJUDY
+echo
+cc $INCLUDE -O SLcompare.c -DJUDYMETHOD -o SL_Judy     $LIBJUDY -lm
+if [ $? -ne 0 ] ; then
+echo "===  Failed: cc SLcompare.c -DJUDYMETHOD"
+exit $?
+fi
+cc $INCLUDE -O Judy1LCheck.c            -o Judy1LCheck $LIBJUDY -lm
+if [ $? -ne 0 ] ; then
+echo "===  Failed: cc Judy1LCheck.c"
+exit $?
+fi
+cc $INCLUDE -O Judy1LTime.c -DNOINLINE  -o Judy1LTime  $LIBJUDY -lm
+if [ $? -ne 0 ] ; then
+echo "===  Failed: cc Judy1LTime.c"
+exit $?
+fi
+
+
+#  -OR-    if Judy is installed, these can be compiled from anywhere:
+
+
+#cc -O SLcompare.c -DJUDYMETHOD     -o SL_Judy     -lJudy -lm 
+#cc -O Judy1LCheck.c                -o Judy1LCheck -lJudy -lm
+#cc -O Judy1LTime.c -DNOINLINE      -o Judy1LTime  -lJudy -lm
+
+echo "===  Pass: Compile of tests"
+echo
+echo "     Validate Judy1/JudyL functions (except Judy*ByCount)"
+./Judy1LCheck -n 300000 -B20 > /dev/null
+if [ $? -ne 0 ] ; then
+echo "===  Failed: Judy1/JudyL validate program"
+exit $?
+fi
+echo "===  Pass: Judy1/JudyL validate program"
+echo
+echo "     Do a few timings tests of Judy1/JudyL"
+echo
+
+# Pop1    is: current number of Indexes stored in Judy array
+# Measmts is: lookups to make measurement
+# J1      is: Judy1
+# JL      is: JudyL
+# /I      is: per Index
+# MU      is: Memory Used (allocated thru malloc(3))
+# HEAP    is: Memory change measured with sbrk(0)
+
+echo "      Pop1   Measmts    J1S    JLI    J1T    JLG J1MU/I JLMU/I HEAP/I"
+./Judy1LTime  -n 2000000 -P1 -B19 | grep -v "^#"
+echo "===  Pass: Judy1/JudyL performance program"
+echo
+echo "     Do a few timings tests of JudySL and friends"
+echo
+
+# lines         is: number of lines in source file
+# avg_linelen   is: average bytes per line
+# getline       is: average time go get a line and remove white space
+# StoreD        is: number of unique lines stored into JudySL array
+# RAMused/line  is: Memory change measured with sbrk(0)
+# store/ln      is: average insert time (including duplicates)
+# lookup/ln     is: average lookup time in same order as inserts
+# ADT           is: Abstract Data Type method
+
+echo "   lines avg_linelen  getline   StoreD RAMused/line  store/ln lookup/ln ADT"
+./SL_Hash     /etc/passwd | grep HASH
+./SL_Splay    /etc/passwd | grep SPLAY
+./SL_Redblack /etc/passwd | grep REDBLACK
+./SL_Judy     /etc/passwd | grep JUDY
+if [ $? -ne 0 ] ; then
+echo "===  Failed: JudySL if StoreD numbers are all the same" 
+exit $?
+fi
+echo "===  Pass: JudySL if StoreD numbers are all the same"
+echo

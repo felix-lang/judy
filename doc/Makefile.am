@@ -135,7 +135,7 @@ man/man3/Judy1_funcs:
 	cd man/man3; ln -s Judy1_funcs Judy1MemUsed
 
 man/man3/JudyL:
-	../tool/jhton ext/JudyL_3.htm | grep -v '^[   ]*$$' sed -e 's/\.C//' > man/man3/JudyL
+	../tool/jhton ext/JudyL_3.htm | grep -v '^[   ]*$$' | sed -e 's/\.C//' > man/man3/JudyL
 	cd man/man3; ln -s JudyL JLG
 	cd man/man3; ln -s JudyL JLI
 	cd man/man3; ln -s JudyL JLD
@@ -153,7 +153,7 @@ man/man3/JudyL:
 	cd man/man3; ln -s JudyL JLMU
 
 man/man3/JudyL_funcs:
-	../tool/jhton ext/JudyL_funcs_3.htm | grep -v '^[   ]*$$' sed -e 's/\.C//' > man/man3/JudyL_funcs
+	../tool/jhton ext/JudyL_funcs_3.htm | grep -v '^[   ]*$$' | sed -e 's/\.C//' > man/man3/JudyL_funcs
 	cd man/man3; ln -s JudyL_funcs JudyLGet
 	cd man/man3; ln -s JudyL_funcs JudyLIns
 	cd man/man3; ln -s JudyL_funcs JudyLDel
@@ -171,7 +171,7 @@ man/man3/JudyL_funcs:
 	cd man/man3; ln -s JudyL_funcs JudyLMemUsed
 
 man/man3/JudySL:
-	../tool/jhton ext/JudySL_3.htm | grep -v '^[   ]*$$' sed -e 's/\.C//' > man/man3/JudySL
+	../tool/jhton ext/JudySL_3.htm | grep -v '^[   ]*$$' | sed -e 's/\.C//' > man/man3/JudySL
 	cd man/man3; ln -s JudySL JSLG
 	cd man/man3; ln -s JudySL JSLI
 	cd man/man3; ln -s JudySL JSLD
@@ -182,7 +182,7 @@ man/man3/JudySL:
 	cd man/man3; ln -s JudySL JSLFA
 
 man/man3/JudySL_funcs:
-	../tool/jhton ext/JudySL_funcs_3.htm | grep -v '^[   ]*$$' sed -e 's/\.C//' > man/man3/JudySL_funcs
+	../tool/jhton ext/JudySL_funcs_3.htm | grep -v '^[   ]*$$' | sed -e 's/\.C//' > man/man3/JudySL_funcs
 	cd man/man3; ln -s JudySL_funcs JudySLGet
 	cd man/man3; ln -s JudySL_funcs JudySLIns
 	cd man/man3; ln -s JudySL_funcs JudySLDel
@@ -193,14 +193,14 @@ man/man3/JudySL_funcs:
 	cd man/man3; ln -s JudySL_funcs JudySLFreeArray
 
 man/man3/JudyHS:
-	../tool/jhton ext/JudyHS_3.htm | grep -v '^[   ]*$$' sed -e 's/\.C//' > man/man3/JudyHS
+	../tool/jhton ext/JudyHS_3.htm | grep -v '^[   ]*$$' | sed -e 's/\.C//' > man/man3/JudyHS
 	cd man/man3; ln -s JudyHS JHSG 
 	cd man/man3; ln -s JudyHS JHSI
 	cd man/man3; ln -s JudyHS JHSD
 	cd man/man3; ln -s JudyHS JHSFA
 
 man/man3/JudyHS_funcs:
-	../tool/jhton ext/JudyHS_funcs_3.htm | grep -v '^[   ]*$$' sed -e 's/\.C//' > man/man3/JudyHS_funcs
+	../tool/jhton ext/JudyHS_funcs_3.htm | grep -v '^[   ]*$$' | sed -e 's/\.C//' > man/man3/JudyHS_funcs
 	cd man/man3; ln -s JudyHS_funcs JudyHSGet
 	cd man/man3; ln -s JudyHS_funcs JudyHSIns
 	cd man/man3; ln -s JudyHS_funcs JudyHSDel

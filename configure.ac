@@ -181,14 +181,14 @@ AC_ARG_ENABLE(32-bit, [ --enable-32-bit          Generate code for a 32-bit envi
               b32="$enableval", b32="no")
 if test x"$b32" != "xno"; then
     AC_MSG_RESULT(Building 32-bit)
-    CFLAGS="-m32 -UJU_64BIT $CFLAGS"
+    CFLAGS="-UJU_64BIT $CFLAGS"
 fi
 
 AC_ARG_ENABLE(64-bit, [ --enable-64-bit          Generate code for a 64-bit environment],
               b64="$enableval", b64="no")
 if test x"$b64" != "xno"; then
     AC_MSG_RESULT(Building 64-bit)
-    CFLAGS="-m64 -DJU_64BIT $CFLAGS"
+    CFLAGS="-DJU_64BIT $CFLAGS"
 fi
 
 if test x"$b32" = "xno"; then 

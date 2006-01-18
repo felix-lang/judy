@@ -3,7 +3,6 @@
 o fixed assumption of signed char in test programs.
 o updated sh_build
 o fixed generation of man pages from html
-o fixed 64-bit build
 
 1.0.1 Version (Dec 2004) by (twh)
 

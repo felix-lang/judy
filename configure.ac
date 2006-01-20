@@ -176,28 +176,16 @@ dnl user as described in 'info autoconf'.
 AC_C_BIGENDIAN(, AC_DEFINE(JU_LITTLE_ENDIAN, 1,
 			   [Define to 1 on little-endian systems.]))
 
-
-AC_ARG_ENABLE(32-bit, [ --enable-32-bit          Generate code for a 32-bit environment],
-              b32="$enableval", b32="no")
-if test x"$b32" != "xno"; then
+dnl  Figure out if we are 32-bit or 64-bit (LP64)
+AC_CHECK_SIZEOF(void *)
+if test "$ac_cv_sizeof_void_p" = 8; then 
+    AC_MSG_RESULT(Building 64-bit)
+    CFLAGS="-DJU_64BIT $CFLAGS"
+else 
     AC_MSG_RESULT(Building 32-bit)
     CFLAGS="-UJU_64BIT $CFLAGS"
 fi
 
-AC_ARG_ENABLE(64-bit, [ --enable-64-bit          Generate code for a 64-bit environment],
-              b64="$enableval", b64="no")
-if test x"$b64" != "xno"; then
-    AC_MSG_RESULT(Building 64-bit)
-    CFLAGS="-DJU_64BIT $CFLAGS"
-fi
-
-if test x"$b32" = "xno"; then 
-    if test x"$b64" = "xno"; then
-	AC_MSG_ERROR([You must run configure with either: 
-		      --enable-32-bit 
-		      --enable-64-bit]);
-    fi
-fi
 
 #  dnl Determine whether or not we're compiling for a 64-bit system by looking
 #  dnl at the size of a 'long'.  This will define SIZEOF_LONG in config.h.  We

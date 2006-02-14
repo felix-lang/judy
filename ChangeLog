@@ -1,7 +1,15 @@
-1.   Version ( ) by (twh)
+1.0.3  Version (Feb 2006 ) by (twh)
+o fixed make files to break out each copy element
+to be a unique target, this also seems to have 
+resolved the issue where running make check rebuilds
+the entire library again.
+
+1.0.2  Version (Jan 2006 ) by (twh)
 
 o fixed assumption of signed char in test programs.
 o updated sh_build
+o fixed generation of man pages from html
+o fixed 32-bit and 64-bit configure
 
 1.0.1 Version (Dec 2004) by (twh)
 

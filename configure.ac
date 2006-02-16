@@ -77,7 +77,7 @@ dnl By definition age must be less than or equal to current. At the outset, only
 dnl the first ever interface is implemented, so age can only be 0.
 dnl 
 
-VERSION_INFO="-version-info 1:3:2"
+VERSION_INFO="-version-info 1:3:0"
 AC_SUBST(VERSION_INFO)
 
 dnl==========================================================================

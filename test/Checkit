@@ -47,7 +47,7 @@ echo "===  Pass: Compile of tests"
 
 echo
 echo "     Validate Judy1/JudyL/JudyHS functions (except Judy*ByCount)"
-./Judy1LHCheck -n 300000 -B20 > /dev/null
+./Judy1LHCheck -n 300000 -B21 > /dev/null
 if [ $? -ne 0 ] ; then
 echo "===  $? Failed: Judy1/JudyL/JudyHS validate program"
 exit $?

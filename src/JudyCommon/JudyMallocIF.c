@@ -182,7 +182,7 @@ static Word_t j__udyMemSequence = 0L;   // event sequence number.
 
 FUNCTION Pjpm_t j__udyAllocJPM(void)
 {
-        Word_t Words = sizeof(jpm_t) / cJU_BYTESPERWORD;
+        Word_t Words = (sizeof(jpm_t) + cJU_BYTESPERWORD - 1) / cJU_BYTESPERWORD;
         Pjpm_t Pjpm  = (Pjpm_t) MALLOC(JudyMalloc, Words, Words);
 
         assert((Words * cJU_BYTESPERWORD) == sizeof(jpm_t));
@@ -524,7 +524,7 @@ FUNCTION Pjv_t j__udyLAllocJV(Word_t Pop1, Pjpm_t Pjpm)
 
 FUNCTION void j__udyFreeJPM(Pjpm_t PjpmFree, Pjpm_t PjpmStats)
 {
-        Word_t Words = sizeof(jpm_t) / cJU_BYTESPERWORD;
+        Word_t Words = (sizeof(jpm_t) + cJU_BYTESPERWORD - 1) / cJU_BYTESPERWORD;
 
         // MALLOCBITS_TEST(Pjpm_t, PjpmFree);   // see above.
         JudyFree((Pvoid_t) PjpmFree, Words);

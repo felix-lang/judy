@@ -220,7 +220,6 @@ typedef struct J_UDY_ERROR_STRUCT
 // ****************************************************************************
 // JUDY1 FUNCTIONS:
 
-extern int      j__udy1Test(     Pvoid_t   Pjpm,   Word_t   Index);
 extern int      Judy1Test(       Pcvoid_t  PArray, Word_t   Index,   P_JE);
 extern int      Judy1Set(        PPvoid_t PPArray, Word_t   Index,   P_JE);
 extern int      Judy1SetArray(   PPvoid_t PPArray, Word_t   Count,
@@ -236,7 +235,6 @@ extern Word_t   Judy1MemUsed(    Pcvoid_t  PArray);
 extern Word_t   Judy1MemActive(  Pcvoid_t  PArray);
 extern int      Judy1First(      Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern int      Judy1Next(       Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
-extern int      j__udy1Next(     Pvoid_t   Pjpm,   Word_t * PIndex);
 extern int      Judy1Last(       Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern int      Judy1Prev(       Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern int      Judy1FirstEmpty( Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
@@ -244,7 +242,6 @@ extern int      Judy1NextEmpty(  Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern int      Judy1LastEmpty(  Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern int      Judy1PrevEmpty(  Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 
-extern PPvoid_t j__udyLGet(      Pvoid_t   Pjpm,   Word_t    Index);
 extern PPvoid_t JudyLGet(        Pcvoid_t  PArray, Word_t    Index,  P_JE);
 extern PPvoid_t JudyLIns(        PPvoid_t PPArray, Word_t    Index,  P_JE);
 extern int      JudyLInsArray(   PPvoid_t PPArray, Word_t    Count,
@@ -264,7 +261,6 @@ extern Word_t   JudyLMemUsed(    Pcvoid_t  PArray);
 extern Word_t   JudyLMemActive(  Pcvoid_t  PArray);
 extern PPvoid_t JudyLFirst(      Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern PPvoid_t JudyLNext(       Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
-extern PPvoid_t j__udyLNext(     Pvoid_t   Pjpm,   Word_t * PIndex);
 extern PPvoid_t JudyLLast(       Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern PPvoid_t JudyLPrev(       Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
 extern int      JudyLFirstEmpty( Pcvoid_t  PArray, Word_t * PIndex,  P_JE);
@@ -520,69 +516,9 @@ extern void   JudyFreeVirtual(Pvoid_t, Word_t); // free, size in words.
 // with root-level leaves:
 
 // This is a slower version with current processors, but in the future...
-#ifdef notdef
-#define J1T(Rc,PArray,Index)                                    \
-{                                                               \
-    PWord_t P_L  = (PWord_t)(PArray);                           \
-    (Rc) = 0;                                                   \
-    if (P_L)                    /* cannot be a NULL pointer */  \
-    {                                                           \
-        if (P_L[0] < 31)        /* is a LeafL  */               \
-        {                                                       \
-            Word_t  _pop1 = P_L[0] + 1;                         \
-            PWord_t P_LE  = P_L    + _pop1;                     \
-            Word_t  _index = 0;                                 \
-            int ii = 0;                                         \
-            P_L++;                                              \
-            while (_pop1 > 4)                                   \
-            {                                                   \
-                _pop1 /=2;                                      \
-                _index = P_L[_pop1];                            \
-                if ((Index) > _index) P_L += _pop1 + 1;         \
-            }                                                   \
-            while (P_L <= P_LE)                                 \
-            {                                                   \
-                ii++;                                           \
-                _index = P_L[0];                                \
-                if (_index >= (Index)) break;                   \
-                P_L++;                                          \
-            }                                                   \
-            if (_index == (Index)) (Rc) = 1;                    \
-        }                                                       \
-        else                                                    \
-        {                                                       \
-            (Rc) = j__udy1Test((Pvoid_t)P_L, (Index));          \
-        }                                                       \
-    }                                                           \
-}
-#endif // notdef
 
-#define J1T(Rc,PArray,Index)                                    \
-{                                                               \
-    PWord_t P_L  = (PWord_t)(PArray);                           \
-    (Rc) = 0;                                                   \
-    if (P_L)                    /* cannot be a NULL pointer */  \
-    {                                                           \
-        if (P_L[0] < 31)        /* is a LeafL  */               \
-        {                                                       \
-            Word_t  _pop1 = P_L[0] + 1;                         \
-            Word_t  _EIndex = P_L[_pop1];                       \
-            if (_pop1 >= 16)                                    \
-            {                                                   \
-                if ((Index) > P_L[_pop1/2]) P_L += _pop1/2;     \
-            }                                                   \
-            if ((Index) <= _EIndex)                             \
-            {                                                   \
-                while((Index) > *(++P_L));                      \
-                if (*P_L == (Index)) (Rc) = 1;                  \
-            }                                                   \
-        }                                                       \
-        else                                                    \
-        {                                                       \
-            (Rc) = j__udy1Test((Pvoid_t)P_L, Index);            \
-        }                                                       \
-    }                                                           \
-}
+#define J1T(Rc,PArray,Index)                                            \
+    (Rc) = Judy1Test((Pvoid_t)(PArray), Index, PJE0)
 
 #define J1S( Rc,    PArray,   Index) \
         J_1I(Rc, (&(PArray)), Index,  Judy1Set,   "Judy1Set")
@@ -615,34 +551,8 @@ extern void   JudyFreeVirtual(Pvoid_t, Word_t); // free, size in words.
 #define J1MU(Rc,    PArray) \
         (Rc) = Judy1MemUsed(PArray)
 
-#define JLG(PV,PArray,Index)                                    \
-{                                                               \
-    extern const uint8_t j__L_LeafWOffset[];                    \
-    PWord_t P_L  = (PWord_t)(PArray);                           \
-    (PV) = (Pvoid_t) NULL;                                      \
-    if (P_L)                    /* cannot be a NULL pointer */  \
-    {                                                           \
-        if (P_L[0] < 31)        /* is a LeafL  */               \
-        {                                                       \
-            Word_t  _pop1 = P_L[0] + 1;                         \
-            Word_t  _EIndex = P_L[_pop1];                       \
-            Word_t  _off  = j__L_LeafWOffset[_pop1] - 1;        \
-            if (_pop1 >= 16)                                    \
-            {                                                   \
-                if ((Index) > P_L[_pop1/2]) P_L += _pop1/2;     \
-            }                                                   \
-            if ((Index) <= _EIndex)                             \
-            {                                                   \
-                while((Index) > *(++P_L));                      \
-                if (*P_L == (Index)) (PV) = (Pvoid_t)(P_L+_off);\
-            }                                                   \
-        }                                                       \
-        else                                                    \
-        {                                                       \
-            (PV) = (Pvoid_t)j__udyLGet((Pvoid_t)P_L, Index);    \
-        }                                                       \
-    }                                                           \
-}
+#define JLG(PV,PArray,Index)                                            \
+    (PV) = (Pvoid_t)JudyLGet((Pvoid_t)PArray, Index, PJE0)
 
 #define JLI( PV,    PArray,   Index)                                    \
         J_1P(PV, (&(PArray)), Index,  JudyLIns,   "JudyLIns")
@@ -656,38 +566,8 @@ extern void   JudyFreeVirtual(Pvoid_t, Word_t); // free, size in words.
 #define JLF( PV,    PArray,   Index)                                    \
         J_1P(PV,    PArray, &(Index), JudyLFirst, "JudyLFirst")
 
-#define JLN(PV,PArray,Index)                                    \
-{                                                               \
-    extern const uint8_t j__L_LeafWOffset[];                    \
-    PWord_t P_L  = (PWord_t) (PArray);                          \
-                                                                \
-    (PV) = (Pvoid_t) NULL;                                      \
-                                                                \
-    if (P_L)                    /* cannot be a NULL pointer */  \
-    {                                                           \
-        if (P_L[0] < 31)        /* is a LeafL  */               \
-        {                                                       \
-            Word_t _pop1 = P_L[0] + 1;                          \
-            Word_t _off  = j__L_LeafWOffset[_pop1] -1;          \
-            if ((Index) < P_L[_pop1])                           \
-            {                                                   \
-                while(1)                                        \
-                {                                               \
-                    if ((Index) < *(++P_L))                     \
-                    {                                           \
-                        (Index) = *P_L;                         \
-                        (PV) = (Pvoid_t) (P_L + _off);          \
-                        break;                                  \
-                    }                                           \
-                }                                               \
-            }                                                   \
-        }                                                       \
-        else                                                    \
-        {                                                       \
-            (PV) = (Pvoid_t)JudyLNext((Pvoid_t) PArray, &(Index), PJE0); \
-        }                                                       \
-    }                                                           \
-}
+#define JLN( PV,    PArray,   Index)                                    \
+        J_1P(PV,    PArray, &(Index), JudyLNext, "JudyLNext")
 
 #define JLL( PV,    PArray,   Index)                                    \
         J_1P(PV,    PArray, &(Index), JudyLLast,  "JudyLLast")

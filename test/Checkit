@@ -16,25 +16,32 @@ echo "$CC -O SLcompare.c -DSPLAYMETHOD -o SL_Splay"
 echo "$CC -O SLcompare.c -DREDBLACKMETHOD -o SL_Redblack"
       $CC -O SLcompare.c -DREDBLACKMETHOD -o SL_Redblack
 
-
 echo
 echo Compiling with Judy library: $LIBJUDY
 echo
+
 echo "$CC -O -I../src SLcompare.c -DJUDYMETHOD -o SL_Judy $LIBJUDY -lm"
       $CC -O -I../src SLcompare.c -DJUDYMETHOD -o SL_Judy $LIBJUDY -lm
-if [ $? -ne 0 ] ; then
+RET=$?
+if [ $RET -ne 0 ] ; then
 echo "===  $? Failed: $CC SLcompare.c -DJUDYMETHOD"
+echo "===  $? Failed: $CC -O -I../src SLcompare.c -DJUDYMETHOD -o SL_Judy $LIBJUDY -lm"
 exit $?
 fi
+
 echo "$CC -O -I../src Judy1LHCheck.c -o Judy1LHCheck $LIBJUDY -lm"
       $CC -O -I../src Judy1LHCheck.c -o Judy1LHCheck $LIBJUDY -lm
-if [ $? -ne 0 ] ; then
+RET=$?
+if [ $RET -ne 0 ] ; then
 echo "===  $? Failed: $CC Judy1LHCheck.c"
 exit $?
 fi
+
+
 echo "$CC -O -I../src Judy1LHTime.c -DNOINLINE  -o Judy1LHTime  $LIBJUDY -lm"
       $CC -O -I../src Judy1LHTime.c -DNOINLINE  -o Judy1LHTime  $LIBJUDY -lm
-if [ $? -ne 0 ] ; then
+RET=$?
+if [ $RET -ne 0 ] ; then
 echo "===  $? Failed: $CC Judy1LHTime.c"
 exit $?
 fi
@@ -47,8 +54,9 @@ echo "===  Pass: Compile of tests"
 
 echo
 echo "     Validate Judy1/JudyL/JudyHS functions (except Judy*ByCount)"
-./Judy1LHCheck -n 300000 -B21 > /dev/null
-if [ $? -ne 0 ] ; then
+./Judy1LHCheck -n 300000 -B20 > /dev/null
+RET=$?
+if [ $RET -ne 0 ] ; then
 echo "===  $? Failed: Judy1/JudyL/JudyHS validate program"
 exit $?
 fi
@@ -83,11 +91,12 @@ echo
 # lookup/ln     is: average lookup time in same order as inserts
 # ADT           is: Abstract Data Type method
 echo "   lines avg_linelen  getline   StoreD RAMused/line  store/ln lookup/ln ADT"
-./SL_Hash     ../Makefile | grep HASH
-./SL_Splay    ../Makefile | grep SPLAY
-./SL_Redblack ../Makefile | grep REDBLACK
-./SL_Judy     ../Makefile | grep JUDY
-if [ $? -ne 0 ] ; then
+./SL_Hash     StringCompare.c | grep HASH
+./SL_Splay    StringCompare.c | grep SPLAY
+./SL_Redblack StringCompare.c | grep REDBLACK
+./SL_Judy     StringCompare.c | grep JUDY
+RET=$?
+if [ $RET -ne 0 ] ; then
 echo "===  $? Failed: JudySL if StoreD numbers are all the same" 
 exit $?
 fi

@@ -181,7 +181,7 @@ Random(Word_t newseed)
     newseed &= RandomBit * 2 - 1;
     if (newseed == FirstSeed)
     {
-    	printf("End of LFSR, Total Population = %lu (0x%lx)\n", TotalPop, TotalPop);
+        printf("Passed (End of LFSR) Judy1, JudyL, JudyHS tests for %lu numbers with <= %ld bits\n", TotalPop, BValue);
     	exit(0);
     }
     return(newseed);
@@ -474,7 +474,7 @@ main(int argc, char *argv[])
 	    TotalPop = 0;
 	}
     }
-    printf("Passed Judy1, JudyL and JudyHS tests\n");
+    printf("Passed Judy1, JudyL, JudyHS tests for %lu numbers with <= %ld bits\n", nElms, BValue);
     exit(0);
 }
 
@@ -511,7 +511,11 @@ TestJudyIns(void **J1, void **JL, void **JH, Word_t Seed, Word_t Elements)
 	if (Rcode == 0)
 	    FAILURE("Judy1Set failed - DUP Index, population =", TotalPop);
 
+#ifdef SKIPMACRO
+	Rcode = Judy1Test(*J1, TstIndex);
+#else
 	J1T(Rcode, *J1, TstIndex);
+#endif // SKIPMACRO
 	if (Rcode != 1)
 	    FAILURE("Judy1Test failed - Index missing, population =", TotalPop);
 
@@ -529,7 +533,11 @@ TestJudyIns(void **J1, void **JL, void **JH, Word_t Seed, Word_t Elements)
 //      Save Index in Value
 	*PValue = TstIndex;
 
+#ifdef SKIPMACRO
+	PValue1 = (PWord_t)JudyLGet(*JL, TstIndex);
+#else
 	JLG(PValue1, *JL, TstIndex);
+#endif // SKIPMACRO
 	if (PValue != PValue1)
 	    FAILURE("JudyLGet failed - Index missing, population =", TotalPop);
 
@@ -602,11 +610,19 @@ TestJudyGet(void *J1, void *JL, void *JH, Word_t Seed, Word_t Elements)
 	if (TstIndex < LowIndex)
 	    LowIndex = TstIndex;
 
+#ifdef SKIPMACRO
+	Rcode = Judy1Test(J1, TstIndex);
+#else
 	J1T(Rcode, J1, TstIndex);
+#endif // SKIPMACRO
 	if (Rcode != 1)
 	    FAILURE("Judy1Test Rcode != 1", Rcode);
 
+#ifdef SKIPMACRO
+	PValue = (PWord_t)JudyLGet(JL, TstIndex);
+#else
 	JLG(PValue, JL, TstIndex);
+#endif // SKIPMACRO
 	if (PValue == (Word_t *) NULL)
 	    FAILURE("JudyLGet ret PValue = NULL", 0L);
 	if (*PValue != TstIndex)
@@ -704,7 +720,11 @@ TestJudyCount(void *J1, void *JL, Word_t LowIndex, Word_t Elements)
 	if (CountL == JERR)
 	    FAILURE("JudyLCount ret JERR", CountL);
 
-	if (CountL != (elm + 1)) FAILURE("JLC at", elm);
+	if (CountL != (elm + 1)) 
+        {
+            printf("CountL = %lu, elm +1 = %lu\n", CountL, elm + 1);
+            FAILURE("JLC at", elm);
+        }
 
 	J1N(Rcode, J1, TstIndex);
     }
@@ -716,7 +736,7 @@ TestJudyCount(void *J1, void *JL, Word_t LowIndex, Word_t Elements)
 
 Word_t TestJudyNext(void *J1, void *JL, Word_t LowIndex, Word_t Elements)
 {
-    Word_t JLindex, J1index;
+    Word_t JLindex, J1index, JPindex = 0;
     Word_t *PValue;
     Word_t elm;
     int Rcode;
@@ -736,6 +756,8 @@ Word_t TestJudyNext(void *J1, void *JL, Word_t LowIndex, Word_t Elements)
 	if (JLindex != J1index)
 	    FAILURE("JudyLNext & Judy1Next ret different PIndex at", elm);
 
+        JPindex = J1index;              // save the last found index
+
 	JLN(PValue, JL, JLindex);	// Get next one
 	J1N(Rcode, J1, J1index);	// Get next one
     }
@@ -746,7 +768,7 @@ Word_t TestJudyNext(void *J1, void *JL, Word_t LowIndex, Word_t Elements)
         FAILURE("Judy1Next Rcode != 1 =", Rcode);
 
 //  perhaps a check should be done here -- if I knew what to expect.
-    return(JLindex);		// return last one
+    return(JPindex);		// return last one
 }
 
 
@@ -797,7 +819,8 @@ TestJudyNextEmpty(void *J1, void *JL, Word_t LowIndex, Word_t Elements)
     Word_t elm;
     Word_t JLindex, J1index;
     Word_t Seed1;
-    int Rcode;		// Return code
+    int Rcode1;		// Return code
+    int RcodeL;		// Return code
 
 //  Set 1st search to  ..
     Seed1 = LowIndex;
@@ -807,26 +830,35 @@ TestJudyNextEmpty(void *J1, void *JL, Word_t LowIndex, Word_t Elements)
     {
         Word_t *PValue;
 
-//      Find next Empty Index, JLindex is modified by JLNE
-	JLNE(Rcode, JL, JLindex);	// Rcode = JudyLNextEmpty(JL, &JLindex, PJE0)
-	if (Rcode != 1)
-	    FAILURE("JudyLNextEmpty Rcode != 1 =", Rcode);
-
 	if (pFlag) { printf("JNE: %8lu\t0x%lx\n", elm, JLindex); }
 
+//      Find next Empty Index, JLindex is modified by JLNE
+	JLNE(RcodeL, JL, JLindex);	// Rcode = JudyLNextEmpty(JL, &JLindex, PJE0)
+
 //      Find next Empty Index, J1index is modified by J1NE
-	J1NE(Rcode, J1, J1index);	// Rcode = Judy1NextEmpty(J1, &J1index, PJE0)
-	if (Rcode != 1)
-	    FAILURE("Judy1NextEmpty Rcode != 1 =", Rcode);
+	J1NE(Rcode1, J1, J1index);	// Rcode = Judy1NextEmpty(J1, &J1index, PJE0)
+	if ((Rcode1 != 1) || (RcodeL != 1))
+        {
+            printf("RcodeL = %d, Rcode1 = %d, Index1 = 0x%lx, IndexL = 0x%lx\n",
+                    RcodeL, Rcode1, J1index, JLindex);
+	    FAILURE("Judy1NextEmpty Rcode != 1 =", Rcode1);
+        }
 
 	if (J1index != JLindex)
 	    FAILURE("JLNE != J1NE returned index at", elm);
-
-	J1T(Rcode, J1, J1index);
-	if (Rcode != 0)
+#ifdef SKIPMACRO
+	Rcode1 = Judy1Test(J1, J1index);
+#else
+	J1T(Rcode1, J1, J1index);
+#endif // SKIPMACRO
+	if (Rcode1 != 0)
 	    FAILURE("J1NE returned non-empty Index =", J1index);
 
+#ifdef SKIPMACRO
+	PValue = (PWord_t)JudyLGet(JL, JLindex);
+#else
 	JLG(PValue, JL, JLindex);
+#endif // SKIPMACRO
 	if (PValue != (Word_t *) NULL)
 	    FAILURE("JLNE returned non-empty Index =", JLindex);
 	
@@ -848,7 +880,8 @@ TestJudyPrevEmpty(void *J1, void *JL, Word_t HighIndex, Word_t Elements)
     Word_t elm;
     Word_t JLindex, J1index;
     Word_t Seed1;
-    int Rcode;
+    int Rcode1;
+    int RcodeL;
 
 //  Set 1st search to  ..
     Seed1 = HighIndex;
@@ -857,26 +890,39 @@ TestJudyPrevEmpty(void *J1, void *JL, Word_t HighIndex, Word_t Elements)
     for (elm = 0; elm < Elements; elm++)
     {
         Word_t *PValue;
+        Word_t JPIndex;
 
-	J1PE(Rcode, J1, J1index);	// Rcode = Judy1PrevEmpty(J1, &J1index, PJE0)
-	if (Rcode != 1)
-	    FAILURE("Judy1PrevEmpty Rcode != 1 =", Rcode);
+        JPIndex = J1index;
 
-	if (pFlag) { printf("JPE: %8lu\t0x%lx\n", elm, J1index); }
+	if (pFlag) { printf("JPE: %8lu\t0x%lx\n", elm, JPIndex); }
+
+	J1PE(Rcode1, J1, J1index);	// Rcode = Judy1PrevEmpty(J1, &J1index, PJE0)
 
 //      Find next Empty Index, JLindex is modified by JLPE
-	JLPE(Rcode, JL, JLindex);	// Rcode = JudyLPrevEmpty(JL, &JLindex, PJE0)
-	if (Rcode != 1)
-	    FAILURE("JudyLPrevEmpty Rcode != 1 =", Rcode);
+	JLPE(RcodeL, JL, JLindex);	// RcodeL = JudyLPrevEmpty(JL, &JLindex, PJE0)
+	if ((RcodeL != 1) || (Rcode1 != 1))
+        {
+            printf("RcodeL = %d, Rcode1 = %d, Index1 = 0x%lx, IndexL = 0x%lx\n",
+                    RcodeL, Rcode1, J1index, JLindex);
+	    FAILURE("Judy*PrevEmpty Rcode* != 1 =", RcodeL);
+        }
 
 	if (J1index != JLindex)
 	    FAILURE("JLPE != J1PE returned index at", elm);
 
-	J1T(Rcode, J1, J1index);
-	if (Rcode != 0)
+#ifdef SKIPMACRO
+	Rcode1 = Judy1Test(J1, J1index);
+#else
+	J1T(Rcode1, J1, J1index);
+#endif // SKIPMACRO
+	if (Rcode1 != 0)
 	    FAILURE("J1PE returned non-empty Index =", J1index);
 
+#ifdef SKIPMACRO
+	PValue = (PWord_t)JudyLGet(JL, JLindex);
+#else
 	JLG(PValue, JL, JLindex);
+#endif // SKIPMACRO
 	if (PValue != (Word_t *) NULL)
 	    FAILURE("JLPE returned non-empty Index =", JLindex);
 

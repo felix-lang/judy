@@ -1,5 +1,7 @@
-1.0.4  Version (Unreleased) by (twh)
+1.0.4  Version (May 2007) by (twh)
 o fixed the Checkit problem "error Judy1PrevEmpty Rcode != 1 = 0"
+o Fixed memory allignment in JudyMallocIF.c (doug)
+o Fixed messages from "make check" (doug).
 
 1.0.3  Version (Feb 2006 ) by (twh)
 o fixed make files to break out each copy element

@@ -180,10 +180,18 @@ dnl  Figure out if we are 32-bit or 64-bit (LP64)
 AC_CHECK_SIZEOF(void *)
 if test "$ac_cv_sizeof_void_p" = 8; then 
     AC_MSG_RESULT(Building 64-bit)
-    CFLAGS="-DJU_64BIT $CFLAGS"
+    if test x"$GCC" = xyes; then
+      CFLAGS="-DJU_64BIT -m64 $CFLAGS"
+    else
+      CFLAGS="-DJU_64BIT $CFLAGS"
+    fi
 else 
     AC_MSG_RESULT(Building 32-bit)
-    CFLAGS="-UJU_64BIT $CFLAGS"
+    if test x"$GCC" = xyes; then
+      CFLAGS="-UJU_64BIT -m32 $CFLAGS"
+    else
+      CFLAGS="-UJU_64BIT $CFLAGS"
+    fi
 fi
 
 

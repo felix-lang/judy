@@ -86,4 +86,4 @@ Judy1TablesGen.c:../JudyCommon/JudyTables.c
 distclean: clean
 
 clean:
-	rm -Rf Judy1ByCount.c Judy1Cascade.c Judy1Count.c Judy1CreateBranch.c Judy1Decascade.c Judy1Unset.c Judy1First.c Judy1FreeArray.c Judy1Test.c j__udy1Test.c Judy1SetArray.c Judy1Set.c Judy1InsertBranch.c Judy1MallocIF.c Judy1MemActive.c Judy1MemUsed.c Judy1Next.c Judy1Prev.c Judy1NextEmpty.c Judy1PrevEmpty.c Judy1TablesGen.c .libs *.o *.lo
+	rm -Rf Judy1ByCount.c Judy1Cascade.c Judy1Count.c Judy1CreateBranch.c Judy1Decascade.c Judy1Unset.c Judy1First.c Judy1FreeArray.c Judy1Test.c j__udy1Test.c Judy1SetArray.c Judy1Set.c Judy1InsertBranch.c Judy1MallocIF.c Judy1MemActive.c Judy1MemUsed.c Judy1Next.c Judy1Prev.c Judy1NextEmpty.c Judy1PrevEmpty.c Judy1TablesGen.c .libs Judy1TablesGen *.o *.lo

@@ -206,5 +206,7 @@ man/man3/JudyHS_funcs:
 	cd man/man3; ln -s JudyHS_funcs JudyHSDel
 	cd man/man3; ln -s JudyHS_funcs JudyHSFreeArray
 
+distclean: clean
+
 clean:
 	rm -f man/man3/*

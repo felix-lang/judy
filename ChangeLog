@@ -1,3 +1,7 @@
+1.0.5  Version (May 2007) by (twh)
+o added proper clean targets to enable multiple builds
+o added examples directory
+
 1.0.4  Version (May 2007) by (twh)
 o fixed the Checkit problem "error Judy1PrevEmpty Rcode != 1 = 0"
 o Fixed memory allignment in JudyMallocIF.c (doug)

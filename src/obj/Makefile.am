@@ -11,3 +11,5 @@ libJudy_la_SOURCES =
 libJudy_la_LIBADD = ../JudyCommon/*.lo ../JudyL/*.lo ../Judy1/*.lo ../JudyHS/*.lo ../JudySL/*.lo 
 
 libJudy_la_LDFLAGS = @VERSION_INFO@
+
+DISTCLEANFILES = .deps Makefile

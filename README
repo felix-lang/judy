@@ -69,35 +69,28 @@ For a quick description see the INSTALL file.
 
 Judy is now based on the GNU Auto tools. This means that you can do the standard
 configure, make, make check and make install and everything should work, with
-one minor differnece and a little caviot. 
+one minor difference and a little caveat. 
 
-Judy is capiable of being built as a 32-bit or a 64-bit library. Therefor you
-need to tell Judy what you want. You MUST run configure with one of the
-following flags:
+Judy is capable of being built as a 32-bit or a 64-bit library. Configure
+will test to detect the native environment and default to that. Therefor if you
+explicitly want to to compile for the non-native environment you need to tell
+Judy what you want. You can run ./configure with one of the following flags:
           
 	  --enable-32-bit 
           --enable-64-bit 
 
-If your compiler generates 32-bit code by default, such as x86, and you run
-configure with --enable-32-bit, your done. You can now run make, make check and
-make install.  
-
-If your compiler generates 64-bit code by default, such as Linux IA-64, and you
-run configure with --enable-64-bit, your done. You can now run make, make check
-and make install.  
-
-The caviot comes in on machines that support both at 32-bit and 64-bit runtime
+The caveat comes in on machines that support both at 32-bit and 64-bit runtime
 environments such as RISC platforms and x86-64. In this case your compiler will
 either use 32-bit or 64-bit as default. If you plan to use the default you can
 follow the above instructions and be finished. 
 
 However, if you wish to compile for the non-default target type. YOU ARE
-RESPONSIABLE FOR SETTING THE CORRECT FLAGS! Such as CFLAGS to make your compiler
+RESPONSIBLE FOR SETTING THE CORRECT FLAGS! Such as CFLAGS to make your compiler
 switch modes LDFLAGS to make your linker behave, etc. 
 
 For example: On HP-UX PA-RISC the compiler generates 32-bit code by default. If
-I wish to stick with the defautls I can build Judy by: 
-   ./configure --enable-32-bit
+I wish to stick with the defaults I can simply build Judy by: 
+   ./configure
    make
    make check
    make install 
@@ -108,6 +101,17 @@ If I want to build Judy as a 64-bit library on HP-UX PA-RISC I have to do:
    make check 
    make install 
 
+If I want to build Judy native (64-bit) on Linux AMD64 I have to do:
+   ./configure
+   make
+   make check
+   make install 
+
+If I want to build Judy 32-bit on Linux AMD64 I have to do:
+   ./configure --enable-32-bit 
+   make 
+   make check 
+   make install 
 
 4. LICENSE
 ----------

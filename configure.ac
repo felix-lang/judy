@@ -176,50 +176,44 @@ dnl user as described in 'info autoconf'.
 AC_C_BIGENDIAN(, AC_DEFINE(JU_LITTLE_ENDIAN, 1,
 			   [Define to 1 on little-endian systems.]))
 
-dnl  Figure out if we are 32-bit or 64-bit (LP64)
-AC_CHECK_SIZEOF(void *)
-if test "$ac_cv_sizeof_void_p" = 8; then 
-    AC_MSG_RESULT(Detected 64-bit Build Environment)
-    CFLAGS="-DJU_64BIT $CFLAGS"
-else 
-    AC_MSG_RESULT(Detected 32-bit Build Environment)
-      CFLAGS="-UJU_64BIT $CFLAGS"
-fi
+
+b32="no"
+b64="no"
 
 AC_ARG_ENABLE(32-bit, [  --enable-32-bit          Generate code for a 32-bit environment],
 	      b32="$enableval", b32="no")
-if test x"$b32" != "xno"; then
+if test "x$b32" != xno; then
     AC_MSG_RESULT(Configured to Build 32-bit)
-    if test x"$GCC" = xyes; then
-      CFLAGS="-UJU_64BIT -m32 $CFLAGS"
+    if test "x$GCC" = xyes; then
+      CFLAGS="-UJU_64BIT -m32"
     else
-      CFLAGS="-UJU_64BIT $CFLAGS"
+      CFLAGS="-UJU_64BIT"
     fi
 fi
 
 AC_ARG_ENABLE(64-bit, [  --enable-64-bit          Generate code for a 64-bit environment],
               b64="$enableval", b64="no")
-if test x"$b64" != "xno"; then
+if test "x$b64" != xno; then
     AC_MSG_RESULT(Configured to Building 64-bit)
-    if test x"$GCC" = xyes; then
-      CFLAGS="-DJU_64BIT -m64 $CFLAGS"
+    if test "x$GCC" = xyes; then
+      CFLAGS="-DJU_64BIT -m64"
     else
-      CFLAGS="-DJU_64BIT $CFLAGS"
+      CFLAGS="-DJU_64BIT"
     fi
 fi
 
-
-
-#  dnl Determine whether or not we're compiling for a 64-bit system by looking
-#  dnl at the size of a 'long'.  This will define SIZEOF_LONG in config.h.  We
-#  dnl append some text to the bottom of config.h to set JU_64BIT appropriately.
-#  dnl we try to do the correct thing if the user doesn't chose for us. 
-#  AC_CHECK_SIZEOF(long)
-#  AH_BOTTOM([/* Define JU_64BIT to 1 if we're on a 64-bit system. */
-#  if SIZEOF_LONG == 8
-#    define JU_64BIT 1
-#  endif])
-#fi
+if test "x$b64" = xno -a "x$b32" = xno; then 
+	    
+	dnl  Figure out if we are 32-bit or 64-bit (LP64)
+	AC_CHECK_SIZEOF(void *)
+	if test "$ac_cv_sizeof_void_p" = 8; then 
+	    AC_MSG_RESULT(Detected 64-bit Build Environment)
+    	CFLAGS="-DJU_64BIT"
+	else 
+    	AC_MSG_RESULT(Detected 32-bit Build Environment)
+      	CFLAGS="-UJU_64BIT"
+	fi
+fi
 
 dnl==========================================================================
 dnl Checks for Libraries

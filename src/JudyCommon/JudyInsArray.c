@@ -176,9 +176,9 @@ static bool_t j__udyInsArray(Pjp_t PjpParent, int Level, PWord_t PPop1,
 // Set/Ins calls.
 
 #ifdef JUDY1
-FUNCTION int Judy1SetArray
+FUNCTION int JUDY_EXTERN Judy1SetArray
 #else
-FUNCTION int JudyLInsArray
+FUNCTION int JUDY_EXTERN JudyLInsArray
 #endif
         (
         PPvoid_t  PPArray,      // in which to insert, initially empty.

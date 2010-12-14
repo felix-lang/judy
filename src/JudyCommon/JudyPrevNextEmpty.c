@@ -144,15 +144,15 @@
 
 #ifdef JUDY1
 #ifdef JUDYPREV
-FUNCTION int Judy1PrevEmpty
+FUNCTION int JUDY_EXTERN Judy1PrevEmpty
 #else
-FUNCTION int Judy1NextEmpty
+FUNCTION int JUDY_EXTERN Judy1NextEmpty
 #endif
 #else
 #ifdef JUDYPREV
-FUNCTION int JudyLPrevEmpty
+FUNCTION int JUDY_EXTERN JudyLPrevEmpty
 #else
-FUNCTION int JudyLNextEmpty
+FUNCTION int JUDY_EXTERN JudyLNextEmpty
 #endif
 #endif
         (

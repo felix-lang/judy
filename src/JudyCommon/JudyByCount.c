@@ -96,9 +96,9 @@ extern Word_t jlb_downward;
 // See the manual entry.
 
 #ifdef JUDY1
-FUNCTION int Judy1ByCount
+FUNCTION int JUDY_EXTERN Judy1ByCount
 #else
-FUNCTION PPvoid_t JudyLByCount
+FUNCTION PPvoid_t JUDY_EXTERN JudyLByCount
 #endif
         (
 	Pcvoid_t  PArray,	// root pointer to first branch/leaf in SM.

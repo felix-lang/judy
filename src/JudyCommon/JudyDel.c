@@ -1813,9 +1813,9 @@ JUDYLCODE(A_ddr = Pjv[offset];)                                         \
 // Main entry point.  See the manual entry for details.
 
 #ifdef JUDY1
-FUNCTION int Judy1Unset 
+FUNCTION int JUDY_EXTERN Judy1Unset
 #else
-FUNCTION int JudyLDel
+FUNCTION int JUDY_EXTERN JudyLDel
 #endif
         (
         PPvoid_t  PPArray,      // in which to delete.

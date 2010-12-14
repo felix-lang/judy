@@ -33,9 +33,9 @@
 #include "JudyPrivate1L.h"
 
 #ifdef JUDY1
-FUNCTION Word_t Judy1MemUsed
+FUNCTION Word_t JUDY_EXTERN Judy1MemUsed
 #else  // JUDYL
-FUNCTION Word_t JudyLMemUsed
+FUNCTION Word_t JUDY_EXTERN JudyLMemUsed
 #endif
         (
 	Pcvoid_t PArray 	// from which to retrieve.

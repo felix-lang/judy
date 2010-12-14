@@ -40,9 +40,9 @@ FUNCTION static Word_t j__udyGetMemActive(Pjp_t);
 // J U D Y   L   M E M   A C T I V E
 
 #ifdef JUDY1
-FUNCTION Word_t Judy1MemActive
+FUNCTION Word_t JUDY_EXTERN Judy1MemActive
 #else
-FUNCTION Word_t JudyLMemActive
+FUNCTION Word_t JUDY_EXTERN JudyLMemActive
 #endif
         (
 	Pcvoid_t PArray	        // from which to retrieve.

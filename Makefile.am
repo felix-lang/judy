@@ -15,3 +15,5 @@ SUBDIRS = src tool doc test
 # These files will be included in our tarballs, even though automake knows
 # nothing else about them.
 #EXTRA_DIST = Makefile.multi original_configure .cvsignore
+
+DISTCLEANFILES = config.log config.status Makefile libtool make.out

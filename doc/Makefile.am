@@ -205,3 +205,5 @@ man/man3/JudyHS_funcs:
 	cd man/man3; ln -s JudyHS_funcs JudyHSIns
 	cd man/man3; ln -s JudyHS_funcs JudyHSDel
 	cd man/man3; ln -s JudyHS_funcs JudyHSFreeArray
+
+CLEANFILES = man/man3/*

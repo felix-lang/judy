@@ -82,3 +82,33 @@ JudyLPrevEmpty.c:../JudyCommon/JudyPrevNextEmpty.c
 	
 JudyLTablesGen.c:../JudyCommon/JudyTables.c
 	cp -f ../JudyCommon/JudyTables.c       	 	JudyLTablesGen.c
+
+DISTCLEANFILES = .deps Makefile 
+
+CLEANFILES = JudyLByCount.c  \
+	     JudyLCascade.c \
+	     JudyLCount.c \
+	     JudyLCreateBranch.c \
+	     JudyLDecascade.c \
+	     JudyLDel.c \
+	     JudyLFirst.c \
+	     JudyLFreeArray.c \
+	     JudyLGet.c \
+	     j__udyLGet.c \
+	     JudyLInsArray.c \
+	     JudyLIns.c \
+	     JudyLInsertBranch.c \
+	     JudyLMallocIF.c \
+	     JudyLMemActive.c \
+	     JudyLMemUsed.c \
+	     JudyLNext.c \
+	     JudyLPrev.c \
+	     JudyLNextEmpty.c \
+	     JudyLPrevEmpty.c \
+	     JudyLTablesGen.c \
+	     JudyLTables.c \
+	     JudyLTablesGen \
+	     .libs \
+	     *.o \
+	     *.lo \
+	     *.la 

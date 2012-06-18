@@ -46,9 +46,9 @@ DBGCODE(extern void JudyCheckPop(Pvoid_t PArray);)
 // simpler.  Hope its fast enough.
 
 #ifdef JUDY1
-FUNCTION Word_t JUDY_EXTERN Judy1FreeArray
+FUNCTION Word_t Judy1FreeArray
 #else
-FUNCTION Word_t JUDY_EXTERN JudyLFreeArray
+FUNCTION Word_t JudyLFreeArray
 #endif
         (
 	PPvoid_t  PPArray,	// array to free.

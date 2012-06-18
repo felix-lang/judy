@@ -40,9 +40,9 @@
 // See the manual entry for details.
 
 #ifdef JUDY1
-FUNCTION int JUDY_EXTERN Judy1First
+FUNCTION int	  Judy1First
 #else
-FUNCTION PPvoid_t JUDY_EXTERN JudyLFirst
+FUNCTION PPvoid_t JudyLFirst
 #endif
         (
 	Pcvoid_t  PArray,	// Judy array to search.
@@ -87,9 +87,9 @@ FUNCTION PPvoid_t JUDY_EXTERN JudyLFirst
 // See the manual entry for details.
 
 #ifdef JUDY1
-FUNCTION int JUDY_EXTERN Judy1Last(
+FUNCTION int	  Judy1Last(
 #else
-FUNCTION PPvoid_t JUDY_EXTERN JudyLLast(
+FUNCTION PPvoid_t JudyLLast(
 #endif
 	Pcvoid_t  PArray,	// Judy array to search.
 	Word_t *  PIndex,	// starting point and result.
@@ -132,9 +132,9 @@ FUNCTION PPvoid_t JUDY_EXTERN JudyLLast(
 // See the manual entry for details.
 
 #ifdef JUDY1
-FUNCTION int JUDY_EXTERN Judy1FirstEmpty(
+FUNCTION int Judy1FirstEmpty(
 #else
-FUNCTION int JUDY_EXTERN JudyLFirstEmpty(
+FUNCTION int JudyLFirstEmpty(
 #endif
 	Pcvoid_t  PArray,	// Judy array to search.
 	Word_t *  PIndex,	// starting point and result.
@@ -176,9 +176,9 @@ FUNCTION int JUDY_EXTERN JudyLFirstEmpty(
 // See the manual entry for details.
 
 #ifdef JUDY1
-FUNCTION int JUDY_EXTERN Judy1LastEmpty(
+FUNCTION int Judy1LastEmpty(
 #else
-FUNCTION int JUDY_EXTERN JudyLLastEmpty(
+FUNCTION int JudyLLastEmpty(
 #endif
 	Pcvoid_t  PArray,	// Judy array to search.
 	Word_t *  PIndex,	// starting point and result.

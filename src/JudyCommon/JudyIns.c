@@ -1679,9 +1679,9 @@ JudyBranchB:
 // Main entry point.  See the manual entry for details.
 
 #ifdef JUDY1
-FUNCTION int JUDY_EXTERN Judy1Set
+FUNCTION int Judy1Set
 #else
-FUNCTION PPvoid_t JUDY_EXTERN JudyLIns
+FUNCTION PPvoid_t JudyLIns
 #endif
         (
         PPvoid_t  PPArray,      // in which to insert.

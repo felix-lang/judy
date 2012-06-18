@@ -120,9 +120,9 @@ Word_t j__udyJPPop1(const Pjp_t Pjp);
 // simpler; hope its fast enough.
 
 #ifdef JUDY1
-FUNCTION Word_t JUDY_EXTERN Judy1Count
+FUNCTION Word_t Judy1Count
 #else
-FUNCTION Word_t JUDY_EXTERN JudyLCount
+FUNCTION Word_t JudyLCount
 #endif
         (
 	Pcvoid_t  PArray,	// JRP to first branch/leaf in SM.

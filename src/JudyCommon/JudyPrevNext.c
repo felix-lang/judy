@@ -183,15 +183,15 @@
 
 #ifdef JUDY1
 #ifdef JUDYPREV
-FUNCTION int JUDY_EXTERN Judy1Prev
+FUNCTION int Judy1Prev
 #else
-FUNCTION int JUDY_EXTERN Judy1Next
+FUNCTION int Judy1Next
 #endif
 #else
 #ifdef JUDYPREV
-FUNCTION PPvoid_t JUDY_EXTERN JudyLPrev
+FUNCTION PPvoid_t JudyLPrev
 #else
-FUNCTION PPvoid_t JUDY_EXTERN JudyLNext
+FUNCTION PPvoid_t JudyLNext
 #endif
 #endif
         (

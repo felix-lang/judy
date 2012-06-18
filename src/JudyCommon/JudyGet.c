@@ -49,7 +49,7 @@
 #ifdef JUDYGETINLINE
 FUNCTION int j__udy1Test
 #else
-FUNCTION int JUDY_EXTERN Judy1Test
+FUNCTION int Judy1Test
 #endif
 
 #else  // JUDYL
@@ -57,7 +57,7 @@ FUNCTION int JUDY_EXTERN Judy1Test
 #ifdef JUDYGETINLINE
 FUNCTION PPvoid_t j__udyLGet
 #else
-FUNCTION PPvoid_t JUDY_EXTERN JudyLGet
+FUNCTION PPvoid_t JudyLGet
 #endif
 
 #endif // JUDYL

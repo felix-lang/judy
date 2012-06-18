@@ -1238,7 +1238,11 @@ LeafB1NextSubexp:	// return here to check next bitmap subexpanse.
 	    if (subexp-- > 0)		// more subexpanses.
 	    {
 		LEAFB1_STARTSUBEXP(SETLEASTDIGITS_D);
-		bitposmaskL = (1UL << (cJU_BITSPERSUBEXPL - 1));
+#ifdef JU_64BIT
+		bitposmaskL = (1ULL << (cJU_BITSPERSUBEXPL - 1));
+#else
+ 		bitposmaskL = (1UL << (cJU_BITSPERSUBEXPL - 1));
+#endif
 		goto LeafB1NextSubexp;
 	    }
 

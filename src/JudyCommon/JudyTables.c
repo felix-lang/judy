@@ -16,6 +16,9 @@
 // _________________
 
 // @(#) $Revision: 4.37 $ $Source: /judy/src/JudyCommon/JudyTables.c $
+#ifdef _MSC_VER
+#define JU_WIN
+#endif
 
 #ifndef JU_WIN
 #include <unistd.h>		// unavailable on win_*.

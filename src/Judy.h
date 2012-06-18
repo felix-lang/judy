@@ -29,20 +29,16 @@
 // avoids "()" on macro names in comments for compatibility with older cc -Aa
 // and some tools on some platforms.
 
+/* here JU_WIN <=> MSVC CL build */
+#ifdef _MSC_VER
+#define JU_WIN
+#endif
 
 // PLATFORM-SPECIFIC
 
 #ifdef JU_WIN /* =============================================== */
 
-typedef __int8           int8_t;
-typedef __int16          int16_t;
-typedef __int32          int32_t;
-typedef __int64          int64_t;
-
-typedef unsigned __int8  uint8_t;
-typedef unsigned __int16 uint16_t;
-typedef unsigned __int32 uint32_t;
-typedef unsigned __int64 uint64_t;
+#include <stdint.h>
 
 #else /* ================ ! JU_WIN ============================= */
 
@@ -91,7 +87,7 @@ typedef void ** PPvoid_t;
 
 #ifndef _WORD_T
 #define _WORD_T
-typedef unsigned long    Word_t, * PWord_t;  // expect 32-bit or 64-bit words.
+typedef uintptr_t Word_t, * PWord_t;  // expect 32-bit or 64-bit words.
 #endif
 
 #ifndef NULL

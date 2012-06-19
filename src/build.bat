@@ -1,10 +1,19 @@
 @ECHO OFF
 
+if not "%1" == "" call setenv %1 %2
+
 echo Set Compiler
 SET CC=cl
 
 echo Set Options
-SET COPT= -DJU_64BIT /Od /Zi
+if "%TARGET_CPU%" == "x64" (
+  if "%configuration%" == "Release"  SET COPT= -DJU_64BIT /Ox & echo Target x64 Release: no program database, max optimisation
+  if "%configuration%" == "Debug" SET COPT= -DJU_64BIT /Od /Zi & echo Target x64 Debug: program database, no optisation
+) else (
+  if "%configuration%" == "Release"  SET COPT= /Ox & echo Target x86 Release: no program database, max optimisation
+  if "%configuration%" == "Debug" SET COPT= /Od /Zi & echo Target x86 Debug: program database, no optisation
+)
+
 SET LOPT=
 SET O=-DJUDY1
 SET L=-DJUDYL

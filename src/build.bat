@@ -1,10 +1,20 @@
 @ECHO OFF
 
+if not "%1" == "" call setenv %1 %2
+
 echo Set Compiler
 SET CC=cl
 
 echo Set Options
-SET COPT=-DJU_WIN
+if "%TARGET_CPU%" == "x64" (
+  if "%configuration%" == "Release"  SET COPT= -DJU_64BIT /Ox & echo Target x64 Release: no program database, max optimisation
+  if "%configuration%" == "Debug" SET COPT= -DJU_64BIT /Od /Zi & echo Target x64 Debug: program database, no optisation
+) else (
+  if "%configuration%" == "Release"  SET COPT= /Ox & echo Target x86 Release: no program database, max optimisation
+  if "%configuration%" == "Debug" SET COPT= /Od /Zi & echo Target x86 Debug: program database, no optisation
+)
+
+SET LOPT=
 SET O=-DJUDY1
 SET L=-DJUDYL
 SET INC=-I.. -I..\JudyCommon
@@ -61,15 +71,18 @@ copy JudyCommon\JudyTables.c	        JudyL\JudyLTablesGen.c
 
 echo Compile JudyCommon\JudyMalloc - common to Judy1 and JudyL
 cd JudyCommon
-%CC% -I. -I.. -DJU_WIN -c JudyMalloc.c
+%CC% -I. -I.. %COPT% -c JudyMalloc.c
 
 cd ..
 
 echo This table is constructed from Juudy1.h data to match malloc(3) needs
+echo %CC% %INC% %COPT% %O% Judy1TablesGen.c -o Judy1TablesGen
 cd Judy1
 %CC% %INC% %COPT% %O% Judy1TablesGen.c -o Judy1TablesGen
 del Judy1TablesGen.obj
 Judy1TablesGen
+
+echo %CC% %INC% %COPT% %O% -c Judy1Tables.c
 %CC% %INC% %COPT% %O% -c Judy1Tables.c
 
 echo compile the main line Judy1 modules
@@ -179,7 +192,7 @@ echo %CC% %INC% %COPT% -c JudyHS.c
 
 cd ..
 echo Make a Judy dll by linking all the objects togeather
-link /DLL JudyCommon\*.obj Judy1\*.obj JudyL\*.obj JudySL\*.obj JudyHS\*.obj /OUT:Judy.dll
+link /DLL %LOPT% JudyCommon\*.obj Judy1\*.obj JudyL\*.obj JudySL\*.obj JudyHS\*.obj /OUT:Judy.dll
 
 echo Make a Judy archive library by linking all the objects togeather
-link /LIB JudyCommon\*.obj Judy1\*.obj JudyL\*.obj JudySL\*.obj JudyHS\*.obj /OUT:Judy.lib
+link /LIB %LOPT% JudyCommon\*.obj Judy1\*.obj JudyL\*.obj JudySL\*.obj JudyHS\*.obj /OUT:Judy.lib

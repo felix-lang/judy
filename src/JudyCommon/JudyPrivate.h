@@ -287,8 +287,10 @@ typedef int bool_t;
 
 #ifdef JU_64BIT
 #define cJU_BYTESPERCL 128              // cache line size in bytes.
+#define cJU_ALLONES  (~0ULL) // A word that is all-ones, normally equal to -1UL, but safer with ~0:
 #else
 #define cJU_BYTESPERCL  64              // cache line size in bytes.
+#define cJU_ALLONES  (~0UL) // A word that is all-ones, normally equal to -1UL, but safer with ~0:
 #endif
 
 // Bits Per Byte:
@@ -304,10 +306,6 @@ typedef int bool_t;
 
 #define JU_BYTESTOWORDS(BYTES) \
         (((BYTES) + cJU_BYTESPERWORD - 1) / cJU_BYTESPERWORD)
-
-// A word that is all-ones, normally equal to -1UL, but safer with ~0:
-
-#define cJU_ALLONES  (~0UL)
 
 // Note, these are forward references, but thats OK:
 
@@ -410,8 +408,13 @@ typedef PWord_t Pjv_t;   // pointer to JudyL value area.
 // constant; otherwise it is a variable shift, which is expensive on some
 // processors.
 
+#ifdef JU_64BIT
 #define JU_LEASTBYTESMASK(BYTES) \
+        ((0x100ULL << (cJU_BITSPERBYTE * ((BYTES) - 1))) - 1)
+#else
+#define JU_LEASTBYTESMASK(BYTES)\
         ((0x100UL << (cJU_BITSPERBYTE * ((BYTES) - 1))) - 1)
+#endif
 
 #define JU_LEASTBYTES(INDEX,BYTES)  ((INDEX) & JU_LEASTBYTESMASK(BYTES))
 
